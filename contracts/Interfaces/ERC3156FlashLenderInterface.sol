@@ -21,7 +21,7 @@ interface ERC3156FlashLenderInterface {
     /**
      * @dev Initiate a flash loan.
      * @param receiver The receiver of the tokens in the loan, and the receiver of the callback.
-     * @param initiator The loan currency.
+     * @param initiator The initiator of the loan, likely same as receiver.
      * @param amount The amount of tokens lent.
      * @param data Arbitrary data structure, intended to contain user-defined parameters.
      */

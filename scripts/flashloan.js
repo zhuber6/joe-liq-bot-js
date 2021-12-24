@@ -1,27 +1,24 @@
 
 wavaxjsonabi = require('./wavaxABI.json');
+contracts = require('./contracts.json');
 
 const main = async () => {
   
   // The address that has WAVAX on mainnet
-  const walletAddr = '0xB9F79Fc4B7A2F5fB33493aB5D018dB811c9c2f02'
-  const WAVAXAddr = '0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7'
-
-  // below flashLender and joetroller
-  const flashloanLenderAddr = '0xC22F01ddc8010Ee05574028528614634684EC29e' // JWrappedNativeDelegator
-  const comptrollerAddr = '0xdc13687554205E5b89Ac783db14bb5bba4A1eDaC'
+  const whaleAddress = '0xB9F79Fc4B7A2F5fB33493aB5D018dB811c9c2f02'
+  const testOverLevAccount = '0x0e0a92d82572753a64eed810e43974f235351dab'
   
   // Become whale
   await hre.network.provider.request({
     method: "hardhat_impersonateAccount",
-    params: [walletAddr]
+    params: [whaleAddress]
   });
 
-  const wallet  = await hre.ethers.provider.getSigner(walletAddr);
-  const factory = await hre.ethers.getContractFactory('FlashloanBorrower');
+  const wallet  = await hre.ethers.provider.getSigner(whaleAddress);
+  const FlashloanBorrowerFactory = await hre.ethers.getContractFactory('FlashloanBorrower');
   
   // deploy flashloan Borrower contract
-  const flashloanBorrowerContract = await factory.deploy(comptrollerAddr);
+  const flashloanBorrowerContract = await FlashloanBorrowerFactory.deploy(contracts.joetrollerAddr);
   await flashloanBorrowerContract.deployed();
   console.log("Contract deployed to:", flashloanBorrowerContract.address);
   
@@ -29,15 +26,15 @@ const main = async () => {
   // const flashloanWallet = await hre.ethers.provider.getSigner(flashloanBorrowerContract.address);
 
   // Set WAVAX contract info
-  const WAVAX = new ethers.Contract(WAVAXAddr, wavaxjsonabi, wallet);
+  const WAVAX = new ethers.Contract(contracts.WAVAX, wavaxjsonabi, wallet);
   
   // Send 1 WAVAX to flash loan Borrower contract,
   // so that you have enough fund to pay the fee.
-  let tx = await WAVAX.transfer(flashloanBorrowerContract.address, 1 * 1e6)
+  let tx = await WAVAX.transfer(flashloanBorrowerContract.address, BigInt(1 * 1e18))
   // let txreceipt = await tx.wait()
   
   // call the doFlashloan
-  tx = await flashloanBorrowerContract.doFlashloan(flashloanLenderAddr, WAVAXAddr, 100 * 1e6);
+  tx = await flashloanBorrowerContract.doFlashloan(contracts.flashloanLenderAddr, BigInt(100 * 1e18), testOverLevAccount);
   // const receipt = await tx.wait()
 
   // see the result
@@ -45,7 +42,7 @@ const main = async () => {
 
   await hre.network.provider.request({
     method: "hardhat_stopImpersonatingAccount",
-    params: [walletAddr]
+    params: [whaleAddress]
   });
 
 };
