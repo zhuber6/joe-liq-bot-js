@@ -49,6 +49,27 @@ contract FlashloanBorrower is ERC3156FlashBorrowerInterface, Exponential {
         return keccak256("ERC3156FlashBorrowerInterface.onFlashLoan");
     }
 
-    EIP20Interface  public token;
-    IJToken         public jtokenCollateral;
+    function liquidate(
+        address borrower,
+        uint256 repayAmount,
+        bool erc20,
+        address tokenBorrowed,
+        address tokenSupplied
+    ) external returns ( uint256 ) {
+        if (erc20) {
+            IJErc20 jErc20Token = IJErc20(tokenBorrowed);
+            IJToken jtokenCollateral = IJToken(tokenSupplied);
+            jErc20Token.liquidateBorrow( borrower, repayAmount, jtokenCollateral );
+        }
+        else {
+            IJWrappedNative jWrappedToken = IJWrappedNative(tokenBorrowed);
+            IJToken jtokenCollateral = IJToken(tokenSupplied);
+            jWrappedToken.liquidateBorrow( borrower, repayAmount, jtokenCollateral );
+        }
+    }
+
+    function getSupplyBalance(address jTokenCollateral) external returns (uint) {
+        console.log(IJToken(jTokenCollateral).balanceOfUnderlying(address(this)));
+        return IJToken(jTokenCollateral).balanceOfUnderlying(address(this));
+    }
 }

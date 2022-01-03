@@ -142,11 +142,11 @@ interface IJToken {
     function supplyRatePerSecond() external view returns (uint256);
     function totalBorrowsCurrent() external returns (uint256);
     function borrowBalanceCurrent(address account) external returns (uint256);
-    // function borrowBalanceStored(address account) public view returns (uint256);
-    // function exchangeRateCurrent() public returns (uint256);
-    // function exchangeRateStored() public view returns (uint256);
+    function borrowBalanceStored(address account) external view returns (uint256);
+    function exchangeRateCurrent() external returns (uint256);
+    function exchangeRateStored() external view returns (uint256);
     function getCash() external view returns (uint256);
-    // function accrueInterest() public returns (uint256);
+    function accrueInterest() external returns (uint256);
     function seize(
        address liquidator,
         address borrower,
@@ -169,6 +169,18 @@ interface IJErc20 {
 }
 
 interface IJWrappedNative {
+    function mint(uint256 mintAmount) external returns (uint256);
+    function redeem(uint256 redeemTokens) external returns (uint256);
+    function redeemUnderlying(uint256 redeemAmount) external returns (uint256);
+    function borrow(uint256 borrowAmount) external returns (uint256);
+    function repayBorrow(uint256 repayAmount) external returns (uint256);
+    function repayBorrowBehalf(address borrower, uint256 repayAmount) external returns (uint256);
+    function liquidateBorrow(
+        address borrower,
+        uint256 repayAmount,
+        IJToken jTokenCollateral
+    ) external returns (uint256);
+    
     function mintNative() external payable returns (uint256);
     function redeemNative(uint256 redeemTokens) external returns (uint256);
     function redeemUnderlyingNative(uint256 redeemAmount) external returns (uint256);
@@ -185,4 +197,8 @@ interface IJWrappedNative {
         uint256 amount,
         bytes calldata data
     ) external returns (bool);
+}
+
+interface PriceOracle {
+    function getUnderlyingPrice(IJToken jToken) external view returns (uint256);
 }

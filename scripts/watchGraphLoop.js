@@ -28,11 +28,9 @@ const main = async ( ) => {
     // query graph for underwater
     underWaterResult = await query_graph( underWater );
     
+    console.log("BLOCKNUMBER: ", blockNumber);
     let underWaterAccounts = underWaterResult.data.data.accounts;
-    if ("0x318b939379e79433a6e260adc48ded4daaa9b6d4" == underWaterAccounts[0].id) {
-      console.log("BLOCKNUMBER: ", blockNumber);
-      parseUnderwaterAccounts( underWaterAccounts );
-    }
+    parseUnderwaterAccounts( underWaterAccounts );
   }
 }
 
@@ -50,25 +48,17 @@ function parseUnderwaterAccounts ( underWaterAccounts ) {
   
   for (let accounts of underWaterAccounts) {
   
-    console.log("Account ID:", accounts.id)
+    console.log(accounts.id)
     console.log("HEALTH: ", accounts.health)
     console.log("total borrow value in USD: ", accounts.totalBorrowValueInUSD)
     console.log("total collateral value in USD: ", accounts.totalCollateralValueInUSD)
   
     for (let tokens of accounts.tokens) {
       if (tokens.supplyBalanceUnderlying > 0  && 
-          tokens.enteredMarket == true) {
-        console.log(tokens.symbol, "supply balance underlying: ", tokens.supplyBalanceUnderlying)
+        tokens.enteredMarket == true) {
+          console.log(tokens.symbol, "supply balance underlying: ", tokens.supplyBalanceUnderlying)
+        }
       }
-      if (tokens.borrowBalanceUnderlying > 0 ) {
-        console.log(tokens.symbol, "borrow balance underlying: ", tokens.borrowBalanceUnderlying)
-      }
-      
-      // console.log("token contract: ", tokens.id.split('-')[0])
-      // console.log(tokens.symbol, "supply balance underlying: ", tokens.supplyBalanceUnderlying)
-      // console.log(tokens.symbol, "borrow balance underlying: ", tokens.borrowBalanceUnderlying)
-
-    }
     console.log()
   }
 

@@ -13,6 +13,8 @@
     "ethers": "^5.1.0",
     "graphql": "^16.2.0",
     "hardhat": "^2.1.2",
-    "react": "^17.0.2"
+    "nomics": "github:mikunimaru/nomics",
+    "react": "^17.0.2",
+    "request-promise": "^4.2.6"
   }
 }
