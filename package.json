@@ -16,5 +16,10 @@
     "nomics": "github:mikunimaru/nomics",
     "react": "^17.0.2",
     "request-promise": "^4.2.6"
+  },
+  "devDependencies": {
+    "@nomiclabs/hardhat-web3": "^2.0.0",
+    "@openzeppelin/test-helpers": "^0.5.15",
+    "web3": "^1.7.0"
   }
 }

@@ -1,4 +1,5 @@
 require("@nomiclabs/hardhat-ethers");
+require("@nomiclabs/hardhat-web3");
 require("dotenv").config();
 
 // When using the hardhat network, you may choose to fork Fuji or Avalanche Mainnet
@@ -13,7 +14,7 @@ const forkingData = FORK_FUJI ? {
   url: 'https://api.avax-test.network/ext/bc/C/rpc',
 } : FORK_MAINNET ? {
   url: 'https://api.avax.network/ext/bc/C/rpc',
-  blockNumber: 8563339
+  blockNumber: 9253165
 } : undefined
 
 module.exports = {

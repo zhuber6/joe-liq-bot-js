@@ -11,6 +11,9 @@ interface Joetroller {
     function enterMarkets(address[] calldata jTokens) external returns (uint256[] memory);
     function exitMarket(address jToken) external returns (uint256);
     function isMarketListed(address jTokenAddress) external view returns (bool);
+    function oracle() external view returns (PriceOracle);
+    function closeFactorMantissa() external view returns (uint256);
+    function liquidationIncentiveMantissa() external view returns (uint256);
     function mintAllowed(
         address jToken,
         address minter,
@@ -116,6 +119,29 @@ interface Joetroller {
         address jTokenCollateral,
         uint256 repayAmount
     ) external view returns (uint256, uint256);
+
+    function getAccountLiquidity(address account)
+        external
+        view
+        returns (
+            uint256,
+            uint256,
+            uint256
+        );
+
+    function getHypotheticalAccountLiquidity(
+        address account,
+        address jTokenModify,
+        uint256 redeemTokens,
+        uint256 borrowAmount
+    )
+        external
+        view
+        returns (
+            uint256,
+            uint256,
+            uint256
+        );
 }
 
 interface IJToken {
@@ -175,22 +201,16 @@ interface IJWrappedNative {
     function borrow(uint256 borrowAmount) external returns (uint256);
     function repayBorrow(uint256 repayAmount) external returns (uint256);
     function repayBorrowBehalf(address borrower, uint256 repayAmount) external returns (uint256);
-    function liquidateBorrow(
-        address borrower,
-        uint256 repayAmount,
-        IJToken jTokenCollateral
-    ) external returns (uint256);
-    
     function mintNative() external payable returns (uint256);
     function redeemNative(uint256 redeemTokens) external returns (uint256);
     function redeemUnderlyingNative(uint256 redeemAmount) external returns (uint256);
     function borrowNative(uint256 borrowAmount) external returns (uint256);
     function repayBorrowNative() external payable returns (uint256);
     function repayBorrowBehalfNative(address borrower) external payable returns (uint256);
-    function liquidateBorrowNative(address borrower, IJToken jTokenCollateral)
-        external
-        payable
-        returns (uint256);
+    function liquidateBorrowNative(
+        address borrower,
+        IJToken jTokenCollateral
+        ) external payable returns (uint256);
     function flashLoan(
         ERC3156FlashBorrowerInterface receiver,
         address initiator,

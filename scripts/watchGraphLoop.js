@@ -56,9 +56,12 @@ function parseUnderwaterAccounts ( underWaterAccounts ) {
     for (let tokens of accounts.tokens) {
       if (tokens.supplyBalanceUnderlying > 0  && 
         tokens.enteredMarket == true) {
-          console.log(tokens.symbol, "supply balance underlying: ", tokens.supplyBalanceUnderlying)
-        }
+        console.log(tokens.symbol, "supply balance underlying: ", tokens.supplyBalanceUnderlying)
       }
+      if (tokens.borrowBalanceUnderlying > 0 ) {
+        console.log(tokens.symbol, "borrow balance underlying: ", tokens.borrowBalanceUnderlying)
+      }
+    }
     console.log()
   }
 
