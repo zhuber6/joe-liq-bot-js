@@ -27,11 +27,20 @@ const main = async () => {
   let blockObj;
   let timestamp;
 
-  // get wallet as signer
+  // The address that has WAVAX on mainnet
+  const whaleAddress = '0xB9F79Fc4B7A2F5fB33493aB5D018dB811c9c2f02'
+  
+  // Become whale
+  await hre.network.provider.request({
+    method: "hardhat_impersonateAccount",
+    params: [whaleAddress]
+  });
+
+  // get whale wallet as signer
   const [account1, account2] = await hre.ethers.getSigners();
   const FlashloanBorrowerFactory = await hre.ethers.getContractFactory('FlashloanBorrower');
 
-  // Setup all contracts with wallet as signer
+  // Setup all contracts with whale wallet as signer
   contractsDict = createContractsDict(account2);
   contractsDictAcct1 = createContractsDict(account1);
   
@@ -39,6 +48,9 @@ const main = async () => {
   const myContract = await FlashloanBorrowerFactory.deploy(contractsDict.joetroller.address);
   await myContract.deployed();
   console.log("Contract deployed to:", myContract.address);
+
+  // Send 1 WAVAX to flash loan Borrower contract
+  // tx = await contractsDict.WAVAX.transfer(myContract.address, BigInt(1 * 1e18))
 
   // Send 1 AVAX to contract for gas
   const transactionHash = await account1.sendTransaction({
@@ -273,6 +285,12 @@ const main = async () => {
 
   avaxToken   = await hre.ethers.provider.getBalance(account2.address);
   console.log("Avax total:", avaxToken / 1e18);
+
+  await hre.network.provider.request({
+      method: "hardhat_stopImpersonatingAccount",
+      params: [whaleAddress]
+    });
+
 };
 
 const runMain = async () => {
