@@ -1,6 +1,5 @@
 const { time, snapshot } = require("@openzeppelin/test-helpers");
 util = require('util');
-const log = require('pino')();
 joetrollerAbi   = require('../artifacts/contracts/Interfaces/JoeLendingInterface.sol/Joetroller.json');
 joeOracleAbi    = require('../artifacts/contracts/Interfaces/JoeLendingInterface.sol/PriceOracle.json');
 jTokenAbi       = require('../artifacts/contracts/Interfaces/JoeLendingInterface.sol/IJToken.json');
@@ -8,271 +7,275 @@ jErc20Abi       = require('../artifacts/contracts/Interfaces/JoeLendingInterface
 erc20Abi        = require('../artifacts/contracts/Interfaces/EIP20Interface.sol/EIP20Interface.json');
 joeRouterAbi    = require('../artifacts/contracts/Interfaces/IJoeRouter02.sol/IJoeRouter02.json');
 
+const pino = require('pino');
+const pretty = require('pino-pretty');
+const stream = pretty({
+  colorize: false
+});
+const logger = pino(stream);
+
+const LOG_TRACE = 0;
+const LOG_DEBUG = 1;
+const LOG_INFO  = 2;
+const LOG_WARN  = 3;
+const LOG_ERROR = 4;
+const LOG_FATAL = 5;
+
 const main = async () => {
+
+  logger.level = 'info'
 
   let tx;
   let receipt;
   let price;
-  let avaxToken;
-  let supplyToken;
-  let supplyjToken;
   let borrowAmount;
-  let borrowErcBalance;
-  let borrowjTokenBalance;
 
-  let borrowToRepayBal;
-  let balanceUnderlyingRedeem;
+  const avaxToSupply = 100;
 
-  let block;
-  let blockObj;
-  let timestamp;
-
-  // get wallet as signer
+  // get wallets as signer
   const [account1, account2] = await hre.ethers.getSigners();
-  const FlashloanBorrowerFactory = await hre.ethers.getContractFactory('FlashloanBorrower');
 
-  // Setup all contracts with wallet as signer
-  contractsDict = createContractsDict(account2);
+  // Setup all token contracts with accounts
   contractsDictAcct1 = createContractsDict(account1);
+  contractsDictAcct2 = createContractsDict(account2);
+
+  supplyContracts = {
+    "name"    : "WBTC",
+    "token"   : contractsDictAcct2.WBTC,
+    "jToken"  : contractsDictAcct2.jWBTC,
+    "jErc"    : contractsDictAcct2.WBTCjErc20
+  };
   
-  // deploy flashloan Borrower contract
-  const myContract = await FlashloanBorrowerFactory.deploy(contractsDict.joetroller.address);
-  await myContract.deployed();
-  console.log("Contract deployed to:", myContract.address);
-
-  // Send 1 AVAX to contract for gas
-  const transactionHash = await account1.sendTransaction({
-    to: myContract.address,
-    value: ethers.utils.parseEther("1.0"), // Sends exactly 1.0 ether
-  });
-
-  // Set contracts for testing
-  supplyTokenContract   = contractsDict.WBTC;
-  supplyjTokenContract  = contractsDict.jWBTC;
-  supplyjErcContract    = contractsDict.WBTCjErc20;
-  borrowErcContract     = contractsDict.DAI;
-  borrowjErcContract    = contractsDict.DAIjErc20;
-  borrowjTokenContract  = contractsDict.jDAI;
+  borrowContracts = {
+    "name"    : "DAI",
+    "token"   : contractsDictAcct2.DAI,
+    "jToken"  : contractsDictAcct2.jDAI,
+    "jErc"    : contractsDictAcct2.DAIjErc20
+  };
   
-  // Get initial test token balance
-  avaxToken   = await hre.ethers.provider.getBalance(account2.address);
-  supplyToken = await supplyTokenContract.balanceOf(account2.address);
-  console.log("Before Swap AVAX:", avaxToken / 1e18);
-  console.log("Before Swap Supply Token:", supplyToken / 1e18);
+  repayContracts = {
+    "name"    : "DAI",
+    "token"   : contractsDictAcct1.DAI,
+    "jToken"  : contractsDictAcct1.jDAI,
+    "jErc"    : contractsDictAcct1.DAIjErc20
+  };
+  
+  seizeContracts = {
+    "name"    : "WBTC",
+    "token"   : contractsDictAcct1.WBTC,
+    "jToken"  : contractsDictAcct1.jWBTC,
+    "jErc"    : contractsDictAcct1.WBTCjErc20
+  };
 
-  // Assign arguments for swap token
-  pathWavaxToSupply = [ contractsDict.WAVAX.address, supplyTokenContract.address ];
-  block     = await web3.eth.getBlockNumber();
-  blockObj  = await web3.eth.getBlock(block);
-  timestamp = blockObj.timestamp;
 
-  let avaxToSupply = 100;
+  // --------------------------------------------------
+  // First get account 2 underwater
+  // --------------------------------------------------
+
+  logger.info("Swapping %d AVAX tokens for Supply(%s) tokens", avaxToSupply, supplyContracts.name);
+
+  // Swap for supply token
   avaxAmountOut = BigInt(avaxToSupply * 1e18);
-  
-  // Swap AVAX for Test ERC token
-  tx = await contractsDict.WAVAX.approve(contractsDict.joerouter.address, avaxAmountOut);
-  receipt = await tx.wait();
-  tx = await contractsDict.joerouter.swapExactAVAXForTokens(
-    0,
-    pathWavaxToSupply,
-    account2.address,
-    BigInt(timestamp + 60),
-    {value: avaxAmountOut}
-  )
-  receipt = await tx.wait();
-  
-  // Get post swap balances
-  avaxToken   = await hre.ethers.provider.getBalance(account2.address);
-  supplyToken = await supplyTokenContract.balanceOf(account2.address);
-  console.log("After Swap AVAX:", avaxToken / 1e18);
-  console.log("After Swap Supply Token:", supplyToken / 1e18);
+  await swapAvaxForTokens(
+    contractsDictAcct2,             // contracts: contractsDict
+    supplyContracts.token.address,  // address:   tokenIn
+    account2.address,               // address:   to
+    avaxAmountOut                   // BigInt:    amount
+  );
 
-  // Set supply amount
-  supplyAmount = supplyToken;
+  supplyAmount = await supplyContracts.token.balanceOf(account2.address);
+
+  logger.info("Done swapping %d AVAX tokens for Supply(%s) tokens amount(%d)", avaxToSupply, supplyContracts.name, supplyAmount / 1e18);
+  await logBalances( LOG_DEBUG, account2.address, supplyContracts, "Supply" );
 
   // Approve supply collateral token for jToken contract
-  tx = await supplyTokenContract.approve(supplyjTokenContract.address, supplyAmount)
+  tx = await supplyContracts.token.approve(supplyContracts.jToken.address, supplyAmount);
   receipt = await tx.wait();
 
+  logger.info("Lending %s to post as collateral", supplyContracts.name);
+
   // Mint jToken
-  tx = await supplyjErcContract.mint(supplyAmount);
+  tx = await supplyContracts.jErc.mint(supplyAmount);
   receipt = await tx.wait();
-  
-  // Get current balances
-  supplyToken  = await supplyTokenContract.balanceOf(account2.address);
-  supplyjToken = await supplyjTokenContract.balanceOf(account2.address);
-  console.log("Current supply token balance:", supplyToken / 1e18);
-  console.log("Amount supplied:", supplyAmount / 1e18);
-  console.log("Amount minted:", supplyjToken / 1e18);
+
+  await logBalances( LOG_DEBUG, account2.address, supplyContracts, "Supply" );
+
+  logger.info("Attempting to enter supplied %s tokens to market", supplyContracts.name);
   
   // Enter jToken to market for collateral
-  tx = await contractsDict.joetroller.enterMarkets( [supplyjTokenContract.address] );
+  tx = await contractsDictAcct2.joetroller.enterMarkets( [supplyContracts.jToken.address] );
   receipt = await tx.wait();
   
   // Verify Supplied jToken is entered
-  let marketEntered = await contractsDict.joetroller.checkMembership( account2.address, supplyjTokenContract.address);
-  console.log("We entered market:", marketEntered.toString());
+  let marketEntered = await contractsDictAcct2.joetroller.checkMembership( account2.address, supplyContracts.jToken.address);
+  if ( !marketEntered )
+    logger.fatal("Error entering %s to market", supplyContracts.name);
+  else
+    logger.info("j%s jTokens entered market successfully", supplyContracts.name);
+
+  // Get current liquidity of account
+  [err, liq, short] = await contractsDictAcct2.joetroller.getAccountLiquidity(account2.address);
+  if (err != 0)
+    logger.fatal("Error getting liquidity");
+
+  logger.info("Account 2 Liquidity: %d", liq / 1e18);
+  logger.info("Account 2 Shortfall: %d", short / 1e18);
   
-  // Verify Supplied jToken is entered
-  [err, liq, short] = await contractsDict.joetroller.getAccountLiquidity(account2.address);
-  console.log("err:", err.toString(), "liq:", liq / 1e18, "short:", short.toString());
-  
-  price = await contractsDict.joeoracle.getUnderlyingPrice(borrowjErcContract.address)
-  console.log( "Price of borrow token:", price / 1e30);
+  // --------------------------------------------------
+  // Account 2 to borrow max
+  // --------------------------------------------------
+
+  price = await contractsDictAcct2.joeoracle.getUnderlyingPrice(borrowContracts.jErc.address)
+  logger.info("Borrow token(%s) Price(%d)", borrowContracts.name, price / 1e18);
   
   // Calculate borrow amount
   borrowAmount = ( (liq * 1e18) / price );
-  // borrowAmount = ( (liq * 1e18) / ( price / 1e10 ) );
-  borrowFudge  = 0.999999999999999;
-  console.log( "Attempting to borrow:", BigInt(borrowAmount * borrowFudge));
+  const borrowFudge  = 0.999999999999999;
+  logger.info("Attempting to borrow token(%s) amount(%d)", borrowContracts.name, borrowAmount * borrowFudge / 1e18);
   
   // Borrow ERC20 token
-  tx = await borrowjErcContract.borrow( BigInt(borrowAmount * borrowFudge) );
+  tx = await borrowContracts.jErc.borrow( BigInt(borrowAmount * borrowFudge) );
   receipt = await tx.wait();
-  borrowErcBalance = await borrowErcContract.balanceOf(account2.address);
-  console.log( "Total borrowed amount of DAI:", borrowErcBalance / 1e18);
+  const borrowErcBalance = await borrowContracts.token.balanceOf(account2.address);
   if (borrowErcBalance == 0)
-    return;
+    logger.fatal("Borrow balance of token %s is 0", borrowContracts.name );
   
-  // Get liq after borrowing
-  [err, liq, short] = await contractsDict.joetroller.getAccountLiquidity(account2.address);
-  console.log("err:", err.toString(), "liq:", liq / 1e18, "short:", short / 1e18);
+  logger.info("Successfully borrowed %s", borrowContracts.name);
+  await logBalances( LOG_DEBUG, account2.address, borrowContracts, "Borrow" );
+  
+  // Get liquidity after borrowing
+  [err, liq, short] = await contractsDictAcct2.joetroller.getAccountLiquidity(account2.address);
+  if (err != 0)
+    logger.fatal("Error getting liquidity");
 
-  // Get current borrow balance
-  tx = await borrowjTokenContract.borrowBalanceCurrent(account2.address);
-  receipt = tx.wait();
-  borrowjTokenBalance = await borrowjTokenContract.borrowBalanceStored(account2.address);
-  console.log("Current jToken borrow balance BEFORE:", borrowjTokenBalance / 1e18);
-  
+  logger.info("Account 2 Liquidity: %d", liq / 1e18);
+  logger.info("Account 2 Shortfall: %d", short / 1e18);
+
   // Jump ahead in time
   await ethers.provider.send("evm_increaseTime", [60*60*24*1])
   await ethers.provider.send('evm_mine');
   
   // Get current borrow balance after mining
-  tx = await borrowjTokenContract.borrowBalanceCurrent(account2.address);
+  tx = await borrowContracts.jToken.borrowBalanceCurrent(account2.address);
   receipt = tx.wait();
-  borrowjTokenBalance = await borrowjTokenContract.borrowBalanceStored(account2.address);
-  console.log("Current jToken borrow balance AFTER:", borrowjTokenBalance / 1e18);
-  
-  // Verify Supplied jToken is entered
-  [err, liq, short] = await contractsDict.joetroller.getAccountLiquidity(account2.address);
-  console.log("err:", err.toString(), "liq:", liq / 1e18, "short:", short / 1e18);
+  borrowTokenBalanceJoe = await borrowContracts.jToken.borrowBalanceStored(account2.address);
+  borrowTokenBalanceLocal = await borrowContracts.token.balanceOf(account2.address);
 
+  logger.info("Advanced in time to accrue interest on borrowed %s Token", borrowContracts.name);
+  logger.info("Borrow token %s balance stored on Joe: %d", borrowContracts.name, borrowTokenBalanceJoe / 1e18);
+  logger.info("Total interest accrued on %s borrow position: %d", borrowContracts.name, (borrowTokenBalanceJoe - borrowTokenBalanceLocal) / 1e18);
+  
+  // Get liquidity now that there should be shortfall on the account
+  [err, liq, short] = await contractsDictAcct2.joetroller.getAccountLiquidity(account2.address);
+  if (err != 0)
+    logger.fatal("Error getting liquidity");
   if (short == 0)
-    return;
+    logger.fatal("Account is not underwater yet");
+
+  logger.info("Account 2 Liquidity: %d", liq / 1e18);
+  logger.info("Account 2 Shortfall: %d", short / 1e18);
+
+  // --------------------------------------------------
+  // Now liquidate underwater Account 2 from Account 1
+  // --------------------------------------------------
+  
+  initialAvaxAccount1 = await hre.ethers.provider.getBalance(account1.address);
+
+  // Arbitrary amount of AVAX to swap for to repay token borrowed
+  avaxAmountOut = BigInt(avaxToSupply * 1e18);
+
+  logger.info("Swapping %d AVAX for repay token %s", avaxToSupply, repayContracts.name);
+  await logBalances( LOG_DEBUG, account1.address, repayContracts, "Repay" );
+
+  // Swap for supply token
+  await swapAvaxForTokens(
+    contractsDictAcct1,             // contracts: contractsDict
+    borrowContracts.token.address,  // address:   tokenIn
+    account1.address,               // address:   to
+    avaxAmountOut                   // BigInt:    amount
+  );
+
+  logger.info("Done swapping %d AVAX for repay token %s", avaxToSupply, repayContracts.name);
+  await logBalances( LOG_DEBUG, account1.address, repayContracts, "Repay" );
 
   // Calculate repay amount
-  const closeFactor = await contractsDict.joetroller.closeFactorMantissa();
-  let repayAmount = (borrowjTokenBalance * closeFactor) / (10 ** 18);
+  const closeFactor = await contractsDictAcct2.joetroller.closeFactorMantissa();
+  let repayAmount = (borrowTokenBalanceJoe * closeFactor) / 1e18;
 
-  // Get most recent block
-  block     = await web3.eth.getBlockNumber();
-  blockObj  = await web3.eth.getBlock(block);
-  timestamp = blockObj.timestamp;
-
-  // Amount of AVAX to swap for to repay token borrowed
-  avaxAmountOut = (avaxToSupply * 1e18)
-
-  avaxToken   = await hre.ethers.provider.getBalance(account2.address);
-  console.log("Avax before ", avaxToken / 1e18);
-
-  // Swap AVAX for borrowed token to repay
-  tx = await contractsDict.joerouter.swapExactAVAXForTokens(
-    0,
-    [ contractsDict.WAVAX.address, borrowErcContract.address ],
-    account1.address,
-    BigInt(timestamp + 60),
-    {value: BigInt(avaxAmountOut)}
-  )
-
-  avaxToken   = await hre.ethers.provider.getBalance(account2.address);
-  console.log("Avax after ", avaxToken / 1e18);
+  logger.info("Calculated repay amount %d", repayAmount / 1e18);
 
   // Make sure repay amount is less than current balance
-  borrowToRepayBal = await borrowErcContract.balanceOf(account1.address);
+  const borrowToRepayBal = await borrowContracts.token.balanceOf(account1.address);
   if ( borrowToRepayBal < repayAmount )
-    return;
+    logger.fatal("Attempting to repay without enough of repay token balance");
+
+  logger.info("Attempting liquidation of Account 2");
+  await logBalances( LOG_DEBUG, account1.address, repayContracts, "Repay" );
+  await logBalances( LOG_DEBUG, account1.address, seizeContracts, "Seize" );
 
   // Approve tokens for repayment
-  // tx = await borrowErcContract.approve(borrowjTokenContract.address, BigInt(repayAmount));
-  tx = await contractsDictAcct1.DAI.approve(borrowjTokenContract.address, BigInt(repayAmount));
+  tx = await repayContracts.token.approve(borrowContracts.jToken.address, BigInt(repayAmount));
   receipt = await tx.wait();
-
-  borrowToRepayBal = await borrowErcContract.balanceOf(account1.address);
-  console.log("current balance before liquidation", borrowToRepayBal / 1e18);
-  balanceRedeem = await contractsDictAcct1.jWBTC.balanceOf( account1.address );
-  console.log("current seized balance before liquidation", balanceRedeem / 1e18);
   
   // Attempt to liquidate
-  // tx = await borrowjErcContract.liquidateBorrow(
-  tx = await contractsDictAcct1.DAIjErc20.liquidateBorrow(
+  tx = await repayContracts.jErc.liquidateBorrow(
     account2.address,
     BigInt(repayAmount),
-    supplyjTokenContract.address
+    seizeContracts.jToken.address
   );
   receipt = await tx.wait();
 
   // Verify balance has changed.
-  borrowToRepayBal = await borrowErcContract.balanceOf(account1.address);
-  console.log("current balance after liquidation", borrowToRepayBal / 1e18);
-  
-  // Redeem
-  balanceRedeem = await contractsDictAcct1.jWBTC.balanceOf( account1.address );
-  console.log("current seized balance after liquidation", balanceRedeem / 1e18);
-  let currentBalance = await contractsDictAcct1.WBTC.balanceOf(account1.address);
-  console.log("current balance before redeeming", currentBalance / 1e18);
-  
-  tx = await contractsDictAcct1.WBTCjErc20.redeem(balanceRedeem);
-  receipt = await tx.wait();
-  
-  currentBalance = await contractsDictAcct1.WBTC.balanceOf(account1.address);
-  console.log("current seized balance after redeeming", currentBalance / 1e18);
-  
-  avaxToken   = await hre.ethers.provider.getBalance(account2.address);
-  console.log("Avax before ", avaxToken / 1e18);
-  
-  // Get most recent block
-  block     = await web3.eth.getBlockNumber();
-  blockObj  = await web3.eth.getBlock(block);
-  timestamp = blockObj.timestamp;
-  
-  // Approve seized tokens for swap
-  tx = await contractsDictAcct1.WBTC.approve(contractsDictAcct1.joerouter.address, currentBalance);
-  receipt = await tx.wait();
-  
-  // Swap seized token for AVAX
-  tx = await contractsDictAcct1.joerouter.swapExactTokensForAVAX(
-    currentBalance,
-    0,
-    [ contractsDictAcct1.WBTC.address, contractsDict.WAVAX.address ],
-    account2.address,
-    BigInt(timestamp + 60)
-  )
-  
-  avaxToken   = await hre.ethers.provider.getBalance(account2.address);
-  console.log("Avax after ", avaxToken / 1e18);
-  
-  borrowToRepayBal = await borrowErcContract.balanceOf(account1.address);
-  console.log("Borrowed balance before swap to AVAX", borrowToRepayBal / 1e18);
-  
-  // Approve seized tokens for swap
-  tx = await contractsDictAcct1.DAI.approve(contractsDictAcct1.joerouter.address, borrowToRepayBal);
-  receipt = await tx.wait();
-  
-  // Swap leftover borrowed tokens for AVAX
-  tx = await contractsDictAcct1.joerouter.swapExactTokensForAVAX(
-    borrowToRepayBal,
-    0,
-    [ contractsDictAcct1.DAI.address, contractsDict.WAVAX.address ],
-    account2.address,
-    BigInt(timestamp + 60)
-  )
-  
-  borrowToRepayBal = await borrowErcContract.balanceOf(account1.address);
-  console.log("Borrowed balance after swap to AVAX", borrowToRepayBal / 1e18);
+  const seizedAmount = await seizeContracts.jToken.balanceOf(account1.address);
+  if (seizedAmount == 0)
+    logger.fatal("Unable to liquidate account, seized assets(%d)", seizedAmount / 1e18);
+  else
+    logger.info("Successfully seized jTokens(j%s) amount(%d) from liquidation", seizeContracts.name, seizedAmount / 1e18);
 
-  avaxToken   = await hre.ethers.provider.getBalance(account2.address);
-  console.log("Avax total:", avaxToken / 1e18);
+  await logBalances( LOG_DEBUG, account1.address, repayContracts, "Repay" );
+  await logBalances( LOG_DEBUG, account1.address, seizeContracts, "Seize" );
+
+  // Redeem seized jTokens
+  tx = await contractsDictAcct1.WBTCjErc20.redeem(seizedAmount);
+  receipt = await tx.wait();
+  
+  let seizedUnderlyingBalance = await seizeContracts.token.balanceOf(account1.address);
+  logger.info("Redeemed(%d) seized jTokens(j%s) for underlying asset(%s)", seizedUnderlyingBalance / 1e18, seizeContracts.name, seizeContracts.name);
+  await logBalances( LOG_DEBUG, account1.address, seizeContracts, "Seize" );
+
+  await swapTokensForAvax(
+    contractsDictAcct1,           // dict:      contractsDict
+    seizeContracts.token,         // dict:      tokenIn
+    account2.address,             // address:   to
+    seizedUnderlyingBalance       // BigInt:    amount
+  );
+
+  logger.info("Swapped seized tokens for AVAX");
+  await logBalances( LOG_DEBUG, account1.address, seizeContracts, "Seize" );
+
+  let unusedRepayTokens = await repayContracts.token.balanceOf(account1.address);
+  await swapTokensForAvax(
+    contractsDictAcct1,     // dict:      contractsDict
+    repayContracts.token,   // dict:      tokenIn
+    account2.address,       // address:   to
+    unusedRepayTokens       // BigInt:    amount
+  );
+
+  logger.info("Swapped unused repay tokens for AVAX");
+  await logBalances( LOG_DEBUG, account1.address, repayContracts, "Repay" );
+
+  // --------------------------------------------------
+  // Finally calculate totals and profits
+  // --------------------------------------------------
+
+  const totalAvax  = await hre.ethers.provider.getBalance(account2.address);
+  const profitAvax = totalAvax - initialAvaxAccount1;
+
+  logger.info("Total AVAX after liquidation: %d", totalAvax / 1e18);
+  logger.info("AVAX profit after gas: %d", profitAvax / 1e18);
+
+  const priceWavax = await contractsDictAcct1.joeoracle.getUnderlyingPrice(contractsDictAcct1.jAVAX.address);
+  logger.info("AVAX profit in $: %d", (priceWavax * profitAvax) / 1e36 );
 };
 
 const runMain = async () => {
@@ -370,4 +373,74 @@ function createContractsDict( signerWallet )  {
   contracts["MIMjErc20"]    = MIMjErc20Contract;
 
   return contracts;
+}
+
+async function getCurrentTimestamp()  {
+  let block     = await web3.eth.getBlockNumber();
+  let blockObj  = await web3.eth.getBlock(block);
+  return blockObj.timestamp;
+}
+
+async function swapAvaxForTokens( contractsDict, tokenIn, to, amount ) {
+  
+  // Get timestamp for swap
+  let timestamp = await getCurrentTimestamp();
+
+  // Swap AVAX for ERC token
+  tx = await contractsDict.WAVAX.approve(contractsDict.joerouter.address, amount);
+  receipt = await tx.wait();
+  tx = await contractsDict.joerouter.swapExactAVAXForTokens(
+    0,
+    [ contractsDict.WAVAX.address, tokenIn ],
+    to,
+    BigInt(timestamp + 60),
+    {value: amount}
+  )
+  receipt = await tx.wait();
+}
+
+async function swapTokensForAvax( contractsDict, tokenInContract, to, amount ) {
+  
+  // Get timestamp for swap
+  let timestamp = await getCurrentTimestamp();
+
+  // Swap ERC token for AVAX
+  tx = await tokenInContract.approve(contractsDict.joerouter.address, amount);
+  receipt = await tx.wait();
+  tx = await contractsDict.joerouter.swapExactTokensForAVAX(
+    amount,
+    0,
+    [ tokenInContract.address, contractsDict.WAVAX.address ],
+    to,
+    BigInt(timestamp + 60)
+  )
+  receipt = await tx.wait();
+}
+
+async function logBalances( level, address, contracts, type) {
+
+  logger.debug(" ------------  %s Balances:  ------------", type);
+  logger.debug(" Address: %s", address);
+  
+  const avaxBal   = await hre.ethers.provider.getBalance(address) / 1e18;
+  const tokenBal  = await contracts.token.balanceOf(address) / 1e18;
+  const jTokenBal = await contracts.jToken.balanceOf(address) / 1e18;
+  
+  switch(level) {
+    case LOG_TRACE:
+      logger.trace(" AVAX   Token  balance : %d", avaxBal);
+      logger.trace(" %s Token  %s balance : %d", type, contracts.name, tokenBal);
+      logger.trace(" %s jToken %s balance : %d", type, contracts.name, jTokenBal);
+      break;
+      case LOG_DEBUG:
+        logger.debug(" AVAX   Token  balance : %d", avaxBal);
+        logger.debug(" %s Token  %s balance : %d", type, contracts.name, tokenBal);
+        logger.debug(" %s jToken %s balance : %d", type, contracts.name, jTokenBal);
+      break;
+      case LOG_INFO:
+      logger.info(" AVAX   Token  balance : %d", avaxBal);
+      logger.info(" %s Token  %s balance : %d", type, contracts.name, tokenBal);
+      logger.info(" %s jToken %s balance : %d", type, contracts.name, jTokenBal);
+      break;
+  }
 }
