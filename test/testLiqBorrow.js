@@ -4,7 +4,7 @@ joetrollerAbi   = require('../artifacts/contracts/Interfaces/JoeLendingInterface
 joeOracleAbi    = require('../artifacts/contracts/Interfaces/JoeLendingInterface.sol/PriceOracle.json');
 jTokenAbi       = require('../artifacts/contracts/Interfaces/JoeLendingInterface.sol/IJToken.json');
 jErc20Abi       = require('../artifacts/contracts/Interfaces/JoeLendingInterface.sol/IJErc20.json');
-erc20Abi        = require('../artifacts/contracts/Interfaces/EIP20Interface.sol/EIP20Interface.json');
+erc20Abi        = require('../artifacts/contracts/Interfaces/IERC20.sol/IERC20.json');
 joeRouterAbi    = require('../artifacts/contracts/Interfaces/IJoeRouter02.sol/IJoeRouter02.json');
 
 const pino = require('pino');
@@ -23,7 +23,7 @@ const LOG_FATAL = 5;
 
 const main = async () => {
 
-  logger.level = 'info'
+  logger.level = 'trace'
 
   let tx;
   let receipt;
@@ -181,46 +181,48 @@ const main = async () => {
   
   initialAvaxAccount1 = await hre.ethers.provider.getBalance(account1.address);
 
-  // Arbitrary amount of AVAX to swap for to repay token borrowed
-  avaxAmountOut = BigInt(avaxToSupply * 1e18);
+  // Calculate repay amount
+  const closeFactor = await contractsDictAcct1.joetroller.closeFactorMantissa();
+  let repayAmountBorrowed = (borrowTokenBalanceJoe * closeFactor) / 1e18;
 
-  logger.info("Swapping %d AVAX for repay token %s", avaxToSupply, repayContracts.name);
+  const [repayAmountAvax, temp] = await contractsDictAcct1.joerouter.getAmountsIn(
+    BigInt(repayAmountBorrowed),
+    [ contractsDictAcct1.WAVAX.address, repayContracts.token.address ]
+  );
+
+  logger.info("Calculated %s repay amount %d", repayContracts.name, repayAmountBorrowed / 1e18);
+  logger.info("Calculated AVAX repay amount %d", repayAmountAvax / 1e18);
+
+  logger.info("Swapping %d AVAX for repay token %s", repayAmountAvax / 1e18, repayContracts.name);
   await logBalances( LOG_DEBUG, account1.address, repayContracts, "Repay" );
 
   // Swap for supply token
   await swapAvaxForTokens(
     contractsDictAcct1,             // contracts: contractsDict
-    borrowContracts.token.address,  // address:   tokenIn
+    repayContracts.token.address,   // address:   tokenIn
     account1.address,               // address:   to
-    avaxAmountOut                   // BigInt:    amount
+    repayAmountAvax                 // BigInt:    amount
   );
 
-  logger.info("Done swapping %d AVAX for repay token %s", avaxToSupply, repayContracts.name);
+  logger.info("Done swapping %d AVAX for repay token %s", repayAmountAvax / 1e18, repayContracts.name);
   await logBalances( LOG_DEBUG, account1.address, repayContracts, "Repay" );
 
-  // Calculate repay amount
-  const closeFactor = await contractsDictAcct2.joetroller.closeFactorMantissa();
-  let repayAmount = (borrowTokenBalanceJoe * closeFactor) / 1e18;
-
-  logger.info("Calculated repay amount %d", repayAmount / 1e18);
-
   // Make sure repay amount is less than current balance
-  const borrowToRepayBal = await borrowContracts.token.balanceOf(account1.address);
-  if ( borrowToRepayBal < repayAmount )
+  const borrowToRepayBal = await repayContracts.token.balanceOf(account1.address);
+  if ( borrowToRepayBal != repayAmountBorrowed )
     logger.fatal("Attempting to repay without enough of repay token balance");
 
   logger.info("Attempting liquidation of Account 2");
-  await logBalances( LOG_DEBUG, account1.address, repayContracts, "Repay" );
   await logBalances( LOG_DEBUG, account1.address, seizeContracts, "Seize" );
 
   // Approve tokens for repayment
-  tx = await repayContracts.token.approve(borrowContracts.jToken.address, BigInt(repayAmount));
+  tx = await repayContracts.token.approve(repayContracts.jToken.address, BigInt(repayAmountBorrowed));
   receipt = await tx.wait();
   
   // Attempt to liquidate
   tx = await repayContracts.jErc.liquidateBorrow(
     account2.address,
-    BigInt(repayAmount),
+    BigInt(repayAmountBorrowed),
     seizeContracts.jToken.address
   );
   receipt = await tx.wait();
@@ -236,7 +238,7 @@ const main = async () => {
   await logBalances( LOG_DEBUG, account1.address, seizeContracts, "Seize" );
 
   // Redeem seized jTokens
-  tx = await contractsDictAcct1.WBTCjErc20.redeem(seizedAmount);
+  tx = await seizeContracts.jErc.redeem(seizedAmount);
   receipt = await tx.wait();
   
   let seizedUnderlyingBalance = await seizeContracts.token.balanceOf(account1.address);
@@ -246,36 +248,26 @@ const main = async () => {
   await swapTokensForAvax(
     contractsDictAcct1,           // dict:      contractsDict
     seizeContracts.token,         // dict:      tokenIn
-    account2.address,             // address:   to
+    account1.address,             // address:   to
     seizedUnderlyingBalance       // BigInt:    amount
   );
 
   logger.info("Swapped seized tokens for AVAX");
   await logBalances( LOG_DEBUG, account1.address, seizeContracts, "Seize" );
-
-  let unusedRepayTokens = await repayContracts.token.balanceOf(account1.address);
-  await swapTokensForAvax(
-    contractsDictAcct1,     // dict:      contractsDict
-    repayContracts.token,   // dict:      tokenIn
-    account2.address,       // address:   to
-    unusedRepayTokens       // BigInt:    amount
-  );
-
-  logger.info("Swapped unused repay tokens for AVAX");
   await logBalances( LOG_DEBUG, account1.address, repayContracts, "Repay" );
 
   // --------------------------------------------------
   // Finally calculate totals and profits
   // --------------------------------------------------
 
-  const totalAvax  = await hre.ethers.provider.getBalance(account2.address);
+  const totalAvax  = await hre.ethers.provider.getBalance(account1.address);
   const profitAvax = totalAvax - initialAvaxAccount1;
 
   logger.info("Total AVAX after liquidation: %d", totalAvax / 1e18);
   logger.info("AVAX profit after gas: %d", profitAvax / 1e18);
 
   const priceWavax = await contractsDictAcct1.joeoracle.getUnderlyingPrice(contractsDictAcct1.jAVAX.address);
-  logger.info("AVAX profit in $: %d", (priceWavax * profitAvax) / 1e36 );
+  logger.info("Profit in USD: %d", (priceWavax * profitAvax) / 1e36 );
 };
 
 const runMain = async () => {
