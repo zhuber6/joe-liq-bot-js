@@ -145,6 +145,7 @@ interface Joetroller {
 }
 
 interface IJToken {
+    function decimals() external view returns (uint8);
     function transfer(address dst, uint256 amount) external returns (bool);
     function transferFrom(
         address src,
