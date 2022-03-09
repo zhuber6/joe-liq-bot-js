@@ -1,11 +1,13 @@
 const { time, snapshot } = require("@openzeppelin/test-helpers");
 util = require('util');
-joetrollerAbi   = require('../artifacts/contracts/Interfaces/JoeLendingInterface.sol/Joetroller.json');
-joeOracleAbi    = require('../artifacts/contracts/Interfaces/JoeLendingInterface.sol/PriceOracle.json');
-jTokenAbi       = require('../artifacts/contracts/Interfaces/JoeLendingInterface.sol/IJToken.json');
-jErc20Abi       = require('../artifacts/contracts/Interfaces/JoeLendingInterface.sol/IJErc20.json');
-erc20Abi        = require('../artifacts/contracts/Interfaces/IERC20.sol/IERC20.json');
-joeRouterAbi    = require('../artifacts/contracts/Interfaces/IJoeRouter02.sol/IJoeRouter02.json');
+joetrollerAbi     = require('../artifacts/contracts/Interfaces/JoeLendingInterface.sol/Joetroller.json');
+joeOracleAbi      = require('../artifacts/contracts/Interfaces/JoeLendingInterface.sol/PriceOracle.json');
+jTokenAbi         = require('../artifacts/contracts/Interfaces/JoeLendingInterface.sol/IJToken.json');
+jErc20Abi         = require('../artifacts/contracts/Interfaces/JoeLendingInterface.sol/IJErc20.json');
+erc20Abi          = require('../artifacts/contracts/Interfaces/IERC20.sol/IERC20.json');
+wavaxAbi          = require('../artifacts/contracts/Interfaces/IWAVAX.sol/IWAVAX.json');
+jWrappedNativeAbi = require('../artifacts/contracts/Interfaces/JoeLendingInterface.sol/IJWrappedNative.json');
+joeRouterAbi      = require('../artifacts/contracts/Interfaces/IJoeRouter02.sol/IJoeRouter02.json');
 
 const pino = require('pino');
 const pretty = require('pino-pretty');
@@ -23,7 +25,7 @@ const LOG_FATAL = 5;
 
 const main = async () => {
 
-  logger.level = 'trace'
+  logger.level = 'info'
 
   let tx;
   let receipt;
@@ -46,17 +48,19 @@ const main = async () => {
   };
   
   borrowContracts = {
-    "name"    : "USDC",
-    "token"   : contractsDictAcct2.USDC,
-    "jToken"  : contractsDictAcct2.jUSDC,
-    "jErc"    : contractsDictAcct2.USDCjErc20
+    "name"    : "USDT",
+    "token"   : contractsDictAcct2.USDT,
+    "jToken"  : contractsDictAcct2.jUSDT,
+    "jErc"    : contractsDictAcct2.USDTjErc20
+    // "jErc"    : contractsDictAcct2.WAVAXjNative
   };
   
   repayContracts = {
-    "name"    : "USDC",
-    "token"   : contractsDictAcct1.USDC,
-    "jToken"  : contractsDictAcct1.jUSDC,
-    "jErc"    : contractsDictAcct1.USDCjErc20
+    "name"    : "USDT",
+    "token"   : contractsDictAcct1.USDT,
+    "jToken"  : contractsDictAcct1.jUSDT,
+    "jErc"    : contractsDictAcct1.USDTjErc20
+    // "jErc"    : contractsDictAcct1.WAVAXjNative
   };
   
   seizeContracts = {
@@ -144,7 +148,7 @@ const main = async () => {
   // Calculate borrow amount
   borrowAmount = ( (liq * 1e18) / borrowTokenPrice );
   const borrowFudge  = 0.999999999999999;
-  logger.info("Attempting to borrow token(%s) amount(%d)", borrowContracts.name, borrowAmount * borrowFudge / borrowTokenExp);
+  logger.info("Attempting to borrow token(%s) amount(%d)", borrowContracts.name, Math.trunc(borrowAmount * borrowFudge) / borrowTokenExp);
   
   // Borrow ERC20 token
   tx = await borrowContracts.jErc.borrow( BigInt(Math.trunc(borrowAmount * borrowFudge)) );
@@ -333,13 +337,14 @@ function createContractsDict( signerWallet )  {
   MIMContract   = new ethers.Contract("0x130966628846bfd36ff31a822705796e8cb8c18d", erc20Abi.abi, signerWallet);
   
   // jERC20 Tokens
-  WETHjErc20Contract  = new ethers.Contract("0x929f5caB61DFEc79a5431a7734a68D714C4633fa", jErc20Abi.abi, signerWallet);
-  WBTCjErc20Contract  = new ethers.Contract("0x3fE38b7b610C0ACD10296fEf69d9b18eB7a9eB1F", jErc20Abi.abi, signerWallet);
-  USDCjErc20Contract  = new ethers.Contract("0xEd6AaF91a2B084bd594DBd1245be3691F9f637aC", jErc20Abi.abi, signerWallet);
-  USDTjErc20Contract  = new ethers.Contract("0x8b650e26404AC6837539ca96812f0123601E4448", jErc20Abi.abi, signerWallet);
-  DAIjErc20Contract   = new ethers.Contract("0xc988c170d0E38197DC634A45bF00169C7Aa7CA19", jErc20Abi.abi, signerWallet);
-  LINKjErc20Contract  = new ethers.Contract("0x585E7bC75089eD111b656faA7aeb1104F5b96c15", jErc20Abi.abi, signerWallet);
-  MIMjErc20Contract   = new ethers.Contract("0xcE095A9657A02025081E0607c8D8b081c76A75ea", jErc20Abi.abi, signerWallet);
+  WAVAXjNativeContract  = new ethers.Contract("0xC22F01ddc8010Ee05574028528614634684EC29e", jWrappedNativeAbi.abi, signerWallet);
+  WETHjErc20Contract    = new ethers.Contract("0x929f5caB61DFEc79a5431a7734a68D714C4633fa", jErc20Abi.abi, signerWallet);
+  WBTCjErc20Contract    = new ethers.Contract("0x3fE38b7b610C0ACD10296fEf69d9b18eB7a9eB1F", jErc20Abi.abi, signerWallet);
+  USDCjErc20Contract    = new ethers.Contract("0xEd6AaF91a2B084bd594DBd1245be3691F9f637aC", jErc20Abi.abi, signerWallet);
+  USDTjErc20Contract    = new ethers.Contract("0x8b650e26404AC6837539ca96812f0123601E4448", jErc20Abi.abi, signerWallet);
+  DAIjErc20Contract     = new ethers.Contract("0xc988c170d0E38197DC634A45bF00169C7Aa7CA19", jErc20Abi.abi, signerWallet);
+  LINKjErc20Contract    = new ethers.Contract("0x585E7bC75089eD111b656faA7aeb1104F5b96c15", jErc20Abi.abi, signerWallet);
+  MIMjErc20Contract     = new ethers.Contract("0xcE095A9657A02025081E0607c8D8b081c76A75ea", jErc20Abi.abi, signerWallet);
 
   // -----------------------------
   // Create contracts dict
@@ -372,6 +377,7 @@ function createContractsDict( signerWallet )  {
   contracts["MIM"]          = MIMContract;
 
   // jERC20 Tokens
+  contracts["WAVAXjNative"] = WAVAXjNativeContract;
   contracts["WETHjErc20"]   = WETHjErc20Contract;
   contracts["WBTCjErc20"]   = WBTCjErc20Contract;
   contracts["USDCjErc20"]   = USDCjErc20Contract;

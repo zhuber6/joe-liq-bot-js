@@ -6,14 +6,13 @@ import "./Interfaces/ERC3156FlashBorrowerInterface.sol";
 import "./Interfaces/JoeLendingInterface.sol";
 import "./Interfaces/IJoeRouter02.sol";
 import "./Interfaces/IERC20.sol";
-import "./Exponential.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 
 import "hardhat/console.sol";
 
 // FlashloanBorrower
-contract FlashloanBorrower is ERC3156FlashBorrowerInterface, Exponential {
+contract FlashloanBorrower is ERC3156FlashBorrowerInterface {
 
     using SafeMath for uint;
     
@@ -102,7 +101,7 @@ contract FlashloanBorrower is ERC3156FlashBorrowerInterface, Exponential {
         // Swap seized assets for WAVAX
         swapTokensForTokens(
             jTokenSuppliedUnderlying,
-            WAVAX_TOKEN,
+            flashLoanToken,
             IERC20(jTokenSuppliedUnderlying).balanceOf(address(this))
         );
 
@@ -112,7 +111,7 @@ contract FlashloanBorrower is ERC3156FlashBorrowerInterface, Exponential {
         // Transfer remaining WAVAX to owner
         IERC20(flashLoanToken).transfer(
             owner,
-            IERC20(WAVAX_TOKEN).balanceOf(address(this)) - (amount + fee)
+            IERC20(flashLoanToken).balanceOf(address(this)) - (amount + fee)
         );
 
         // Finish loan
@@ -121,8 +120,8 @@ contract FlashloanBorrower is ERC3156FlashBorrowerInterface, Exponential {
 
     function swapTokensForTokens( 
         address tokenIn,
-        address tokenOut, 
-        uint256 amount 
+        address tokenOut,
+        uint256 amount
     ) internal {
 
         require(
@@ -130,9 +129,21 @@ contract FlashloanBorrower is ERC3156FlashBorrowerInterface, Exponential {
             "Token in balance is zero"
         );
 
-        address[] memory path = new address[](2);
-        path[0] = tokenIn;
-        path[1] = tokenOut;
+        address[] memory path;
+        if( (WAVAX_TOKEN == tokenIn) || (WAVAX_TOKEN == tokenOut) )
+        {
+            path = new address[](2);
+            path[0] = tokenIn;
+            path[1] = tokenOut;
+        }
+        else
+        {
+            path = new address[](3);
+            path[0] = tokenIn;
+            path[1] = WAVAX_TOKEN;
+            path[2] = tokenOut;
+        }
+
 
         IERC20(tokenIn).approve(address(JOE_ROUTER), amount);
         JOE_ROUTER.swapExactTokensForTokens(
