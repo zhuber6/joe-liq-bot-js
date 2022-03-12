@@ -48,13 +48,22 @@ contract FlashLiquidator is ERC3156FlashBorrowerInterface {
     function doFlashloan(
         address flashloanLender,
         address flashLoanToken,
-        uint256 flashLoanAmount,
         address borrowerToLiquidate,
         address jTokenBorrowed,
         address jTokenBorrowedUnderlying,
         address jTokenSupplied,
         address jTokenSuppliedUnderlying
     ) external {
+
+        // Calculate amount to get for flash loan
+        uint256 flashLoanAmount = getFlashLoanAmount(
+            borrowerToLiquidate,
+            jTokenBorrowedUnderlying,
+            jTokenBorrowed,
+            flashLoanToken
+        );
+
+        // Set data bytes to pass through to onFlashLoan function
         bytes memory data = abi.encode(
             flashLoanToken,
             flashLoanAmount,
@@ -65,6 +74,7 @@ contract FlashLiquidator is ERC3156FlashBorrowerInterface {
             jTokenSuppliedUnderlying
         );
 
+        // Call flash loan function
         ERC3156FlashLenderInterface(flashloanLender).flashLoan(this, address(this), flashLoanAmount, data);
     }
 
@@ -140,6 +150,43 @@ contract FlashLiquidator is ERC3156FlashBorrowerInterface {
 
         // Finish loan
         return keccak256("ERC3156FlashBorrowerInterface.onFlashLoan");
+    }
+
+
+    function getFlashLoanAmount( 
+        address borrower,
+        address jTokenBorrowedUnderlying,
+        address jTokenBorrowed,
+        address flashLoanToken
+    ) internal view returns (uint256 flashLoanAmount) {
+
+        // Get borrowed token balance
+        uint256 borrowBalance = IJToken(jTokenBorrowed).borrowBalanceStored(borrower);
+        uint256 closeFactor = JOE_TROLLER.closeFactorMantissa();
+
+        // Get repay amount in borrowed jTokenUnderylying
+        uint256 repayAmountBorrowed = borrowBalance * closeFactor / (10 ** 18);
+        
+        address[] memory path = new address[](2);
+        path[0] = flashLoanToken;
+        path[1] = jTokenBorrowedUnderlying;
+
+        uint256[] memory amounts = new uint256[](2);
+
+        // Get repay amount in flash loaned token
+        amounts = JOE_ROUTER.getAmountsIn(
+            repayAmountBorrowed,
+            path
+        );
+
+        // Return amount to flash loan
+        flashLoanAmount = amounts[0];
+
+        require(
+            amounts[0] > 0, 
+            "Repay amount calculated to be zero"
+        );
+
     }
 
     function swapTokensForTokens( 

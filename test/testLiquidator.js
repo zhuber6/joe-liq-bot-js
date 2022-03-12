@@ -243,7 +243,7 @@ const main = async () => {
   const txFlash = await myContract.doFlashloan(
     flashContracts.jToken.address,      // address: flashloanLender
     flashContracts.token.address,       // address: flashLoanToken
-    repayAmount,                        // uint256: flashLoanAmount
+    // repayAmount,                        // uint256: flashLoanAmount
     account2.address,                   // address: borrowerToLiquidate
     borrowContracts.jToken.address,     // address: jTokenBorrowed
     borrowContracts.token.address,      // address: jTokenBorrowedUnderlying
