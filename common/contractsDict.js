@@ -1,3 +1,12 @@
+joetrollerAbi     = require('../artifacts/contracts/Interfaces/JoeLendingInterface.sol/Joetroller.json');
+joeOracleAbi      = require('../artifacts/contracts/Interfaces/JoeLendingInterface.sol/PriceOracle.json');
+jTokenAbi         = require('../artifacts/contracts/Interfaces/JoeLendingInterface.sol/IJToken.json');
+jErc20Abi         = require('../artifacts/contracts/Interfaces/JoeLendingInterface.sol/IJErc20.json');
+erc20Abi          = require('../artifacts/contracts/Interfaces/IERC20.sol/IERC20.json');
+wavaxAbi          = require('../artifacts/contracts/Interfaces/IWAVAX.sol/IWAVAX.json');
+jWrappedNativeAbi = require('../artifacts/contracts/Interfaces/JoeLendingInterface.sol/IJWrappedNative.json');
+joeRouterAbi      = require('../artifacts/contracts/Interfaces/IJoeRouter02.sol/IJoeRouter02.json');
+
 function createContractsDict( signerWallet )  {
   var contracts = {};
 
