@@ -9,7 +9,7 @@ const main = async ( ) => {
   health_lt = 1.1
   totalBorrowValueInUSD_gt = 0
   blockNumber_gt = 9672210;
-  blockNumber = 8450099;
+  blockNumber = 9881152;
   underWaterBorrower = "0xd65a65d17ba88726b61383147e9c013a8ef6ee0b";
 
   pastLiqEvents = setPastLiqEventsString();
@@ -22,6 +22,7 @@ const main = async ( ) => {
   for (let events of liqEvents) {
     blockNumber = events.blockNumber - 1;
     underWaterBorrower = events.borrower
+    blockNumber = 9881152;
 
     underWater = setUnderWaterString();
 
@@ -29,10 +30,11 @@ const main = async ( ) => {
     underWaterResult = await query_graph( underWater );
     
     let underWaterAccounts = underWaterResult.data.data.accounts;
-    if ("0xb15bdbdf0cc44993c18ddba69b2f138e5d3fe43d" == underWaterAccounts[0].id) {
+    // if ("0xf5096073d1bc819b28decf9e178ffb8a8c6af11a" == underWaterAccounts[0].id) {
       console.log("BLOCKNUMBER: ", blockNumber);
       parseUnderwaterAccounts( underWaterAccounts );
-    }
+      // process.exit(0);
+    // }
   }
 }
 
@@ -58,15 +60,13 @@ function parseUnderwaterAccounts ( underWaterAccounts ) {
     for (let tokens of accounts.tokens) {
       if (tokens.supplyBalanceUnderlying > 0  && 
           tokens.enteredMarket == true) {
+        // console.log("supply address: ", tokens.id.split('-')[0])
         console.log(tokens.symbol, "supply balance underlying: ", tokens.supplyBalanceUnderlying)
       }
       if (tokens.borrowBalanceUnderlying > 0 ) {
+        // console.log("borrow address: ", tokens.id.split('-')[0])
         console.log(tokens.symbol, "borrow balance underlying: ", tokens.borrowBalanceUnderlying)
       }
-      
-      // console.log("token contract: ", tokens.id.split('-')[0])
-      // console.log(tokens.symbol, "supply balance underlying: ", tokens.supplyBalanceUnderlying)
-      // console.log(tokens.symbol, "borrow balance underlying: ", tokens.borrowBalanceUnderlying)
 
     }
     console.log()

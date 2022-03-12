@@ -14,7 +14,9 @@ const forkingData = FORK_FUJI ? {
   url: 'https://api.avax-test.network/ext/bc/C/rpc',
 } : FORK_MAINNET ? {
   url: 'https://api.avax.network/ext/bc/C/rpc',
-  blockNumber: 9253165
+  // blockNumber: 9253165
+  // blockNumber: 10423710
+  blockNumber: 9881152
 } : undefined
 
 module.exports = {
@@ -26,7 +28,8 @@ module.exports = {
       gasPrice: 225000000000,
       // chainId: !forkingData ? 43112 : undefined, //Only specify a chainId if we are not forking
       chainId: 43114,
-      forking: forkingData
+      forking: forkingData,
+      timeout: 100000
     },
     local: {
       url: 'http://localhost:8545/ext/bc/C/rpc',
@@ -44,12 +47,13 @@ module.exports = {
       //   "0x86f78c5416151fe3546dece84fda4b4b1e36089f2dbc48496faf3a950f16157c",
       //   "0x750839e9dbbd2a0910efe40f50b2f3b2f2f59f5580bb4b83bd8c1201cf9a010a"
       // ]
+      timeout: 100000
     },
     fuji: {
       url: 'https://api.avax-test.network/ext/bc/C/rpc',
       gasPrice: 225000000000,
       chainId: 43113,
-      accounts: []
+      accounts: [process.env.PRIVATE_KEY]
     },
     mainnet: {
       url: 'https://api.avax.network/ext/bc/C/rpc',

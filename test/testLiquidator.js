@@ -9,6 +9,9 @@ wavaxAbi          = require('../artifacts/contracts/Interfaces/IWAVAX.sol/IWAVAX
 jWrappedNativeAbi = require('../artifacts/contracts/Interfaces/JoeLendingInterface.sol/IJWrappedNative.json');
 joeRouterAbi      = require('../artifacts/contracts/Interfaces/IJoeRouter02.sol/IJoeRouter02.json');
 
+const {createContractsDict} = require('../common/contractsDict.js');
+const { swapAvaxForTokens, swapTokensForAvax } = require('../common/functions.js');
+
 const pino = require('pino');
 const pretty = require('pino-pretty');
 const stream = pretty({
@@ -36,19 +39,21 @@ const main = async () => {
 
   // get wallets as signer
   const [account1, account2] = await hre.ethers.getSigners();
-  const FlashloanBorrowerFactory = await hre.ethers.getContractFactory('FlashloanBorrower');
+  const FlashLiquidatorFactory = await hre.ethers.getContractFactory('FlashLiquidator');
+  // const myContract = await FlashLiquidatorFactory.attach("0xc3e53F4d16Ae77Db1c982e75a937B9f60FE63690");
 
   // Setup all token contracts with accounts
   contractsDictAcct1 = createContractsDict(account1);
   contractsDictAcct2 = createContractsDict(account2);
 
   // deploy flashloan Borrower contract
-  const myContract = await FlashloanBorrowerFactory.deploy(
+  const myContract = await FlashLiquidatorFactory.deploy(
     contractsDictAcct1.joetroller.address,
     contractsDictAcct1.joerouter.address
   );
   await myContract.deployed();
   console.log("Flash Loan liquidator contract deployed to:", myContract.address);
+
 
   supplyContracts = {
     "name"    : "WBTC",
@@ -58,17 +63,17 @@ const main = async () => {
   };
   
   borrowContracts = {
-    "name"    : "WAVAX",
-    "token"   : contractsDictAcct2.WAVAX,
-    "jToken"  : contractsDictAcct2.jAVAX,
-    "jErc"    : contractsDictAcct2.WAVAXjNative
+    "name"    : "USDC",
+    "token"   : contractsDictAcct2.USDC,
+    "jToken"  : contractsDictAcct2.jUSDC,
+    "jErc"    : contractsDictAcct2.USDCjErc20
   };
   
   repayContracts = {
-    "name"    : "WAVAX",
-    "token"   : contractsDictAcct1.WAVAX,
-    "jToken"  : contractsDictAcct1.jAVAX,
-    "jErc"    : contractsDictAcct1.WAVAXjNative
+    "name"    : "USDC",
+    "token"   : contractsDictAcct1.USDC,
+    "jToken"  : contractsDictAcct1.jUSDC,
+    "jErc"    : contractsDictAcct1.USDCjErc20
   };
 
   const borrowedWavaxBool = borrowContracts.token.address == contractsDictAcct1.WAVAX.address;
@@ -78,8 +83,8 @@ const main = async () => {
     flashContracts = {
       "name"    : "WAVAX",
       "token"   : contractsDictAcct1.WAVAX,
-      "jToken"  : contractsDictAcct1.jAVAX,
-      "jErc"    : contractsDictAcct1.WAVAXjNative
+      "jToken"  : contractsDictAcct1.jWAVAX,
+      "jErc"    : contractsDictAcct1.WAVAXjErc20
     };
   }
   else
@@ -108,6 +113,9 @@ const main = async () => {
   const borrowTokenExp = 10 ** borrowTokenDecimals;
   const repayTokenExp = 10 ** repayTokenDecimals;
   const flashTokenExp = 10 ** flashTokenDecimals;
+
+  // Call this to update block.timestamp on local network
+  await ethers.provider.send('evm_mine');
 
   // Swap for supply token
   avaxAmountOut = BigInt(avaxToSupply * 1e18);
@@ -231,6 +239,7 @@ const main = async () => {
   logger.info("Calculated %s repay amount %d", repayContracts.name, Math.trunc(repayAmountBorrowed) / repayTokenExp);
   logger.info("Calculated %s repay amount %d", flashContracts.name, repayAmount / flashTokenExp);
 
+  logger.info("Starting Liquidation");
   const txFlash = await myContract.doFlashloan(
     flashContracts.jToken.address,      // address: flashloanLender
     flashContracts.token.address,       // address: flashLoanToken
@@ -241,6 +250,7 @@ const main = async () => {
     supplyContracts.jToken.address,     // address: jTokenSupplied
     supplyContracts.token.address       // address: jTokenSuppliedUnderlying
   )
+  logger.info("Finished liquidation");
 
   // --------------------------------------------------
   // Calculate totals and profits
@@ -269,10 +279,10 @@ const main = async () => {
   logger.info("Total AVAX after liquidation: %d", totalAvax / wavaxExp);
   logger.info("AVAX profit after gas: %d", profitAvax / wavaxExp);
 
-  const priceWavax = await contractsDictAcct1.joeoracle.getUnderlyingPrice(contractsDictAcct1.jAVAX.address);
+  const priceWavax = await contractsDictAcct1.joeoracle.getUnderlyingPrice(contractsDictAcct1.jWAVAX.address);
   logger.info("Profit in USD: %d", (priceWavax * profitAvax) / (wavaxExp ** 2) );
 
-  await new Promise(resolve => setTimeout(resolve, 1000)); // 3 sec
+  await new Promise(resolve => setTimeout(resolve, 1000));  // wait for all logs to finish
 };
 
 const runMain = async () => {
@@ -287,134 +297,6 @@ const runMain = async () => {
 
 runMain();
 
-
-function createContractsDict( signerWallet )  {
-  var contracts = {};
-
-  // -----------------------------
-  // Create contracts for each token to access
-  // -----------------------------
-
-  // Joe Contracts
-  joetrollerContract = new ethers.Contract("0xdc13687554205E5b89Ac783db14bb5bba4A1eDaC", joetrollerAbi.abi, signerWallet);
-  joeOracleContract  = new ethers.Contract("0xd7Ae651985a871C1BC254748c40Ecc733110BC2E", joeOracleAbi.abi,  signerWallet);
-  joeRouterContract  = new ethers.Contract("0x60aE616a2155Ee3d9A68541Ba4544862310933d4", joeRouterAbi.abi,  signerWallet);
-  
-  // jTokens
-  jAVAXContract = new ethers.Contract("0xC22F01ddc8010Ee05574028528614634684EC29e", jTokenAbi.abi, signerWallet);
-  jWETHContract = new ethers.Contract("0x929f5caB61DFEc79a5431a7734a68D714C4633fa", jTokenAbi.abi, signerWallet);
-  jWBTCContract = new ethers.Contract("0x3fE38b7b610C0ACD10296fEf69d9b18eB7a9eB1F", jTokenAbi.abi, signerWallet);
-  jUSDCContract = new ethers.Contract("0xEd6AaF91a2B084bd594DBd1245be3691F9f637aC", jTokenAbi.abi, signerWallet);
-  jUSDTContract = new ethers.Contract("0x8b650e26404AC6837539ca96812f0123601E4448", jTokenAbi.abi, signerWallet);
-  jDAIContract  = new ethers.Contract("0xc988c170d0E38197DC634A45bF00169C7Aa7CA19", jTokenAbi.abi, signerWallet);
-  jLINKContract = new ethers.Contract("0x585E7bC75089eD111b656faA7aeb1104F5b96c15", jTokenAbi.abi, signerWallet);
-  jMIMContract  = new ethers.Contract("0xcE095A9657A02025081E0607c8D8b081c76A75ea", jTokenAbi.abi, signerWallet);
-  jXJOEContract = new ethers.Contract("0xC146783a59807154F92084f9243eb139D58Da696", jTokenAbi.abi, signerWallet);
-
-  // ERC20 Tokens
-  WAVAXContract = new ethers.Contract("0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7", wavaxAbi.abi, signerWallet);
-  WETHContract  = new ethers.Contract("0x49d5c2bdffac6ce2bfdb6640f4f80f226bc10bab", erc20Abi.abi, signerWallet);
-  WBTCContract  = new ethers.Contract("0x50b7545627a5162f82a992c33b87adc75187b218", erc20Abi.abi, signerWallet);
-  USDCContract  = new ethers.Contract("0xa7d7079b0fead91f3e65f86e8915cb59c1a4c664", erc20Abi.abi, signerWallet);
-  USDTContract  = new ethers.Contract("0xc7198437980c041c805a1edcba50c1ce5db95118", erc20Abi.abi, signerWallet);
-  DAIContract   = new ethers.Contract("0xd586e7f844cea2f87f50152665bcbc2c279d8d70", erc20Abi.abi, signerWallet);
-  LINKContract  = new ethers.Contract("0x5947bb275c521040051d82396192181b413227a3", erc20Abi.abi, signerWallet);
-  MIMContract   = new ethers.Contract("0x130966628846bfd36ff31a822705796e8cb8c18d", erc20Abi.abi, signerWallet);
-  
-  // jERC20 Tokens
-  WAVAXjNativeContract  = new ethers.Contract("0xC22F01ddc8010Ee05574028528614634684EC29e", jWrappedNativeAbi.abi, signerWallet);
-  WETHjErc20Contract    = new ethers.Contract("0x929f5caB61DFEc79a5431a7734a68D714C4633fa", jErc20Abi.abi, signerWallet);
-  WBTCjErc20Contract    = new ethers.Contract("0x3fE38b7b610C0ACD10296fEf69d9b18eB7a9eB1F", jErc20Abi.abi, signerWallet);
-  USDCjErc20Contract    = new ethers.Contract("0xEd6AaF91a2B084bd594DBd1245be3691F9f637aC", jErc20Abi.abi, signerWallet);
-  USDTjErc20Contract    = new ethers.Contract("0x8b650e26404AC6837539ca96812f0123601E4448", jErc20Abi.abi, signerWallet);
-  DAIjErc20Contract     = new ethers.Contract("0xc988c170d0E38197DC634A45bF00169C7Aa7CA19", jErc20Abi.abi, signerWallet);
-  LINKjErc20Contract    = new ethers.Contract("0x585E7bC75089eD111b656faA7aeb1104F5b96c15", jErc20Abi.abi, signerWallet);
-  MIMjErc20Contract     = new ethers.Contract("0xcE095A9657A02025081E0607c8D8b081c76A75ea", jErc20Abi.abi, signerWallet);
-
-  // -----------------------------
-  // Create contracts dict
-  // -----------------------------
-
-  // Joe Core contracts
-  contracts["joetroller"]   = joetrollerContract;
-  contracts["joeoracle"]    = joeOracleContract;
-  contracts["joerouter"]    = joeRouterContract;
-
-  // jTokens
-  contracts["jAVAX"]        = jAVAXContract;
-  contracts["jWETH"]        = jWETHContract;
-  contracts["jWBTC"]        = jWBTCContract;
-  contracts["jUSDC"]        = jUSDCContract;
-  contracts["jUSDT"]        = jUSDTContract;
-  contracts["jDAI"]         = jDAIContract;
-  contracts["jLINK"]        = jLINKContract;
-  contracts["jMIM"]         = jMIMContract;
-  contracts["jXJOE"]        = jXJOEContract;
-
-  // ERC20 Tokens
-  contracts["WAVAX"]        = WAVAXContract;
-  contracts["WETH"]         = WETHContract;
-  contracts["WBTC"]         = WBTCContract;
-  contracts["USDC"]         = USDCContract;
-  contracts["USDT"]         = USDTContract;
-  contracts["DAI"]          = DAIContract;
-  contracts["LINK"]         = LINKContract;
-  contracts["MIM"]          = MIMContract;
-
-  // jERC20 Tokens
-  contracts["WAVAXjNative"] = WAVAXjNativeContract;
-  contracts["WETHjErc20"]   = WETHjErc20Contract;
-  contracts["WBTCjErc20"]   = WBTCjErc20Contract;
-  contracts["USDCjErc20"]   = USDCjErc20Contract;
-  contracts["USDTjErc20"]   = USDTjErc20Contract;
-  contracts["DAIjErc20"]    = DAIjErc20Contract;
-  contracts["LINKjErc20"]   = LINKjErc20Contract;
-  contracts["MIMjErc20"]    = MIMjErc20Contract;
-
-  return contracts;
-}
-
-async function getCurrentTimestamp()  {
-  let block     = await web3.eth.getBlockNumber();
-  let blockObj  = await web3.eth.getBlock(block);
-  return blockObj.timestamp;
-}
-
-async function swapAvaxForTokens( contractsDict, tokenIn, to, amount ) {
-  
-  // Get timestamp for swap
-  let timestamp = await getCurrentTimestamp();
-
-  // Swap AVAX for ERC token
-  tx = await contractsDict.WAVAX.approve(contractsDict.joerouter.address, amount);
-  receipt = await tx.wait();
-  tx = await contractsDict.joerouter.swapExactAVAXForTokens(
-    0,
-    [ contractsDict.WAVAX.address, tokenIn ],
-    to,
-    BigInt(timestamp + 60),
-    {value: amount}
-  )
-  receipt = await tx.wait();
-}
-
-async function swapTokensForAvax( contractsDict, tokenInContract, to, amount ) {
-  
-  // Get timestamp for swap
-  let timestamp = await getCurrentTimestamp();
-
-  // Swap ERC token for AVAX
-  tx = await tokenInContract.approve(contractsDict.joerouter.address, amount);
-  receipt = await tx.wait();
-  tx = await contractsDict.joerouter.swapExactTokensForAVAX(
-    amount,
-    0,
-    [ tokenInContract.address, contractsDict.WAVAX.address ],
-    to,
-    BigInt(timestamp + 60)
-  )
-  receipt = await tx.wait();
-}
 
 async function logBalances( level, address, contracts, type) {
 

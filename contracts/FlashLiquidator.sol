@@ -6,16 +6,33 @@ import "./Interfaces/ERC3156FlashBorrowerInterface.sol";
 import "./Interfaces/JoeLendingInterface.sol";
 import "./Interfaces/IJoeRouter02.sol";
 import "./Interfaces/IERC20.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 
-import "hardhat/console.sol";
+// FlashLiquidator
+contract FlashLiquidator is ERC3156FlashBorrowerInterface {
 
-// FlashloanBorrower
-contract FlashloanBorrower is ERC3156FlashBorrowerInterface {
+    // Events
+    event Swap(
+        address tokenIn,
+        address tokenOut,
+        uint256 amountIn,
+        uint256 amountOut
+    );
 
-    using SafeMath for uint;
-    
+    event Liquidated(
+        address borrower,
+        uint256 repayAmount,
+        address jTokenBorrowed,
+        address jTokenSupplied
+    );
+
+    event Profit(
+        address flashLoanToken,
+        uint256 profitInFlashToken,
+        address profitSentTo
+    );
+
+    // Constructor variables
     IJoeRouter02 public JOE_ROUTER;
     Joetroller public JOE_TROLLER;
     address public owner;
@@ -105,6 +122,13 @@ contract FlashloanBorrower is ERC3156FlashBorrowerInterface {
             IERC20(jTokenSuppliedUnderlying).balanceOf(address(this))
         );
 
+        // Emit event showing profit of liquidation
+        emit Profit( 
+            flashLoanToken,
+            IERC20(flashLoanToken).balanceOf(address(this)) - (amount + fee),
+            owner
+        );
+
         // Approve flash loan lender to pay back loan
         IERC20(token).approve(msg.sender, amount + fee);
 
@@ -158,6 +182,8 @@ contract FlashloanBorrower is ERC3156FlashBorrowerInterface {
             IERC20(tokenOut).balanceOf(address(this)) > 0, 
             "Token out balance is zero"
         );
+
+        emit Swap( tokenIn, tokenOut, amount, IERC20(tokenOut).balanceOf(address(this)) );
     }
 
     function liquidate(
@@ -180,6 +206,8 @@ contract FlashloanBorrower is ERC3156FlashBorrowerInterface {
             IJToken(jTokenSupplied).balanceOf(address(this)) > 0,
             "Seized jTokens is zero"
         );
+
+        emit Liquidated(borrower, amount, jTokenBorrowed, jTokenSupplied );
     }
 
 
