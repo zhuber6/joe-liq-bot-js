@@ -19,7 +19,7 @@ const main = async () => {
   // // Send AVAX to contract for gas
   // const transactionHash = await myAccount.sendTransaction({
   //   to: myContract.address,
-  //   value: ethers.utils.parseEther("0.5"),
+  //   value: ethers.utils.parseEther("0.2"),
   // });
 };
 

@@ -22,7 +22,6 @@ const main = async ( ) => {
   for (let events of liqEvents) {
     blockNumber = events.blockNumber - 1;
     underWaterBorrower = events.borrower
-    blockNumber = 9881152;
 
     underWater = setUnderWaterString();
 
@@ -30,11 +29,8 @@ const main = async ( ) => {
     underWaterResult = await query_graph( underWater );
     
     let underWaterAccounts = underWaterResult.data.data.accounts;
-    // if ("0xf5096073d1bc819b28decf9e178ffb8a8c6af11a" == underWaterAccounts[0].id) {
-      console.log("BLOCKNUMBER: ", blockNumber);
-      parseUnderwaterAccounts( underWaterAccounts );
-      // process.exit(0);
-    // }
+    console.log("BLOCKNUMBER: ", blockNumber);
+    parseUnderwaterAccounts( underWaterAccounts );
   }
 }
 

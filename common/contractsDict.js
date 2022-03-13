@@ -31,14 +31,14 @@ function createContractsDict( signerWallet )  {
   jXJOEContract = new ethers.Contract("0xC146783a59807154F92084f9243eb139D58Da696", jTokenAbi.abi, signerWallet);
 
   // ERC20 Tokens
-  WAVAXContract = new ethers.Contract("0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7", wavaxAbi.abi, signerWallet);
-  WETHContract  = new ethers.Contract("0x49d5c2bdffac6ce2bfdb6640f4f80f226bc10bab", erc20Abi.abi, signerWallet);
-  WBTCContract  = new ethers.Contract("0x50b7545627a5162f82a992c33b87adc75187b218", erc20Abi.abi, signerWallet);
-  USDCContract  = new ethers.Contract("0xa7d7079b0fead91f3e65f86e8915cb59c1a4c664", erc20Abi.abi, signerWallet);
-  USDTContract  = new ethers.Contract("0xc7198437980c041c805a1edcba50c1ce5db95118", erc20Abi.abi, signerWallet);
-  DAIContract   = new ethers.Contract("0xd586e7f844cea2f87f50152665bcbc2c279d8d70", erc20Abi.abi, signerWallet);
-  LINKContract  = new ethers.Contract("0x5947bb275c521040051d82396192181b413227a3", erc20Abi.abi, signerWallet);
-  MIMContract   = new ethers.Contract("0x130966628846bfd36ff31a822705796e8cb8c18d", erc20Abi.abi, signerWallet);
+  WAVAXContract = new ethers.Contract("0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7", wavaxAbi.abi, signerWallet);
+  WETHContract  = new ethers.Contract("0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB", erc20Abi.abi, signerWallet);
+  WBTCContract  = new ethers.Contract("0x50b7545627a5162F82A992c33b87aDc75187B218", erc20Abi.abi, signerWallet);
+  USDCContract  = new ethers.Contract("0xA7D7079b0FEaD91F3e65f86E8915Cb59c1a4C664", erc20Abi.abi, signerWallet);
+  USDTContract  = new ethers.Contract("0xc7198437980c041c805A1EDcbA50c1Ce5db95118", erc20Abi.abi, signerWallet);
+  DAIContract   = new ethers.Contract("0xd586E7F844cEa2F87f50152665BCbc2C279D8d70", erc20Abi.abi, signerWallet);
+  LINKContract  = new ethers.Contract("0x5947BB275c521040051D82396192181b413227A3", erc20Abi.abi, signerWallet);
+  MIMContract   = new ethers.Contract("0x130966628846BFd36ff31a822705796e8cb8C18D", erc20Abi.abi, signerWallet);
   XJOEContract  = new ethers.Contract("0x57319d41F71E81F3c65F2a47CA4e001EbAFd4F33", erc20Abi.abi, signerWallet);
   
   // jERC20 Tokens
@@ -96,7 +96,7 @@ function createContractsDict( signerWallet )  {
 }
 
 const WAVAX   = "0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7";
-const WETH    = "0x49d5c2bdffac6ce2bfdb6640f4f80f226bc10bab";
+const WETH    = "0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB";
 const WBTC    = "0x50b7545627a5162F82A992c33b87aDc75187B218";
 const USDC    = "0xA7D7079b0FEaD91F3e65f86E8915Cb59c1a4C664";
 const USDT    = "0xc7198437980c041c805A1EDcbA50c1Ce5db95118";

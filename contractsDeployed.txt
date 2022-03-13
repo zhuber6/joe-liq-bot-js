@@ -1,0 +1,5 @@
+FlashLiquidator (Fuji):
+0x4427ab1872379917fc330930931a0f8ae6068416
+
+FlashLiquidator (Mainnet):
+0x848b3aBd5f73F96baa462a3a794f03D74ED4cf81

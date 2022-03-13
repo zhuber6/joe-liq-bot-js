@@ -132,6 +132,11 @@ contract FlashLiquidator is ERC3156FlashBorrowerInterface {
             IERC20(jTokenSuppliedUnderlying).balanceOf(address(this))
         );
 
+        require(
+            IERC20(flashLoanToken).balanceOf(address(this)) > (amount + fee), 
+            "Seized amount less than flashloan amount plus fee"
+        );
+
         // Emit event showing profit of liquidation
         emit Profit( 
             flashLoanToken,
