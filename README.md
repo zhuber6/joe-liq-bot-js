@@ -8,10 +8,10 @@ This contract will calculate amount to borrow based on borrowers position, get a
 
 ## Tests
 
-These three scripts are meant to be run independently and not via the CLI command `npx hardhat test`. Each of these scripts will produce logging data.
+Run the test suite by calling `npx hardhat test`.
 
-`npx hardhat run test/testLiqBorrow.js`: Creates an underwater acccount and liquidates it without using our contract.
+`testLiqBorrow`: Creates an underwater acccount and liquidates it without using our contract.
 
-`npx hardhat run test/testLiquidator.js`: Creates an underwater account and liquidates using our contract.
+`testLiquidator`: Creates an underwater account and liquidates using our contract.
 
-`npx hardhat run test/testLiqLocal.js`: Used to test liquidate a borrower that was underwater on mainnet, via mainnet fork locally. This test will not work unless the `borrowerAddress` defined in the script, is underwater on the block which is forked off of mainnet.
+`npx hardhat run scripts/testLiqLocal.js --network local`: Used to test liquidate a borrower that was underwater on mainnet, via mainnet fork locally. This test will not work unless the `borrowerAddress` defined in the script, is underwater on the block which is forked off of mainnet.

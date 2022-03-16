@@ -1,6 +1,9 @@
 const { time, snapshot } = require("@openzeppelin/test-helpers");
 util = require('util');
 
+const { ethers } = require("hardhat");
+const { expect } = require("chai");
+
 const {createContractsDict} = require('../common/contractsDict.js');
 const { swapAvaxForTokens, swapTokensForAvax } = require('../common/functions.js');
 
@@ -18,7 +21,8 @@ const LOG_WARN  = 3;
 const LOG_ERROR = 4;
 const LOG_FATAL = 5;
 
-const main = async () => {
+describe("testLiqBorrow", async function () {
+  await it("Should have a positive profit after liquidation", async function () {
 
   logger.level = 'info'
 
@@ -29,7 +33,7 @@ const main = async () => {
   const avaxToSupply = 100;
 
   // get wallets as signer
-  const [account1, account2] = await hre.ethers.getSigners();
+  const [account1, account2] = await ethers.getSigners();
 
   // Setup all token contracts with accounts
   contractsDictAcct1 = createContractsDict(account1);
@@ -95,7 +99,7 @@ const main = async () => {
   supplyAmount = await supplyContracts.token.balanceOf(account2.address);
 
   logger.info("Done swapping %d AVAX tokens for Supply(%s) tokens amount(%d)", avaxToSupply, supplyContracts.name, supplyAmount / supplyTokenExp);
-  await logBalances( LOG_DEBUG, account2.address, supplyContracts, "Supply" );
+  await logBalances( account2.address, supplyContracts, "Supply" );
 
   // Approve supply collateral token for jToken contract
   tx = await supplyContracts.token.approve(supplyContracts.jToken.address, supplyAmount);
@@ -107,7 +111,7 @@ const main = async () => {
   tx = await supplyContracts.jErc.mint(supplyAmount);
   receipt = await tx.wait();
 
-  await logBalances( LOG_DEBUG, account2.address, supplyContracts, "Supply" );
+  await logBalances( account2.address, supplyContracts, "Supply" );
 
   logger.info("Attempting to enter supplied %s tokens to market", supplyContracts.name);
   
@@ -117,13 +121,11 @@ const main = async () => {
   
   // Verify Supplied jToken is entered
   let marketEntered = await contractsDictAcct2.joetroller.checkMembership( account2.address, supplyContracts.jToken.address);
-  if ( !marketEntered )  { console.log("Error entering to market"); return; }
-  else
-    logger.info("j%s jTokens entered market successfully", supplyContracts.name);
+  expect(marketEntered).to.be.true;
 
   // Get current liquidity of account
   [err, liq, short] = await contractsDictAcct2.joetroller.getAccountLiquidity(account2.address);
-  if (err != 0)  { console.log("Error getting liquidity"); return; }
+  expect(err.toNumber()).to.equal(0);
 
   logger.info("Account 2 Liquidity: %d", liq / 1e18);
   logger.info("Account 2 Shortfall: %d", short / 1e18);
@@ -145,16 +147,14 @@ const main = async () => {
   tx = await borrowContracts.jErc.borrow( BigInt(Math.trunc(borrowAmount * borrowFudge)) );
   receipt = await tx.wait();
   const borrowErcBalance = await borrowContracts.token.balanceOf(account2.address);
-  if (borrowErcBalance == 0)  { console.log("Borrow balance of is 0"); return; }
-  else
-    logger.info("Successfully borrowed %s", borrowContracts.name);
+  expect(borrowErcBalance.toNumber()).to.gt(0);
+  expect(err.toNumber()).to.equal(0);
 
-  await logBalances( LOG_DEBUG, account2.address, borrowContracts, "Borrow" );
+  await logBalances( account2.address, borrowContracts, "Borrow" );
   
   // Get liquidity after borrowing
   [err, liq, short] = await contractsDictAcct2.joetroller.getAccountLiquidity(account2.address);
-  if (err != 0)
-    logger.fatal("Error getting liquidity");
+  expect(err.toNumber()).to.equal(0);
 
   logger.info("Account 2 Liquidity: %d", liq / 1e18);
   logger.info("Account 2 Shortfall: %d", short / 1e18);
@@ -175,8 +175,8 @@ const main = async () => {
   
   // Get liquidity now that there should be shortfall on the account
   [err, liq, short] = await contractsDictAcct2.joetroller.getAccountLiquidity(account2.address);
-  if (err != 0)  { console.log("Error getting liquidity"); return; }
-  if (short == 0)  { console.log("Account is not underwater yet"); return; }
+  expect(err.toNumber()).to.equal(0);
+  expect(short / 1e18).to.gt(0);
 
   logger.info("Account 2 Liquidity: %d", liq / 1e18);
   logger.info("Account 2 Shortfall: %d", short / 1e18);
@@ -185,7 +185,7 @@ const main = async () => {
   // Now liquidate underwater Account 2 from Account 1
   // --------------------------------------------------
   
-  initialAvaxAccount1 = await hre.ethers.provider.getBalance(account1.address);
+  initialAvaxAccount1 = await ethers.provider.getBalance(account1.address);
 
   // Calculate repay amount
   const closeFactor = await contractsDictAcct1.joetroller.closeFactorMantissa();
@@ -200,7 +200,7 @@ const main = async () => {
   logger.info("Calculated AVAX repay amount %d", repayAmountAvax / wavaxExp);
 
   logger.info("Swapping %d AVAX for repay token %s", repayAmountAvax / wavaxExp, repayContracts.name);
-  await logBalances( LOG_DEBUG, account1.address, repayContracts, "Repay" );
+  await logBalances( account1.address, repayContracts, "Repay" );
 
   // Swap for supply token
   await swapAvaxForTokens(
@@ -211,18 +211,16 @@ const main = async () => {
   );
 
   logger.info("Done swapping %d AVAX for repay token %s", repayAmountAvax / wavaxExp, repayContracts.name);
-  await logBalances( LOG_DEBUG, account1.address, repayContracts, "Repay" );
+  await logBalances( account1.address, repayContracts, "Repay" );
 
   // Make sure repay amount is less than current balance
   const borrowToRepayBal = await repayContracts.token.balanceOf(account1.address);
-  if ( borrowToRepayBal != Math.trunc(repayAmountBorrowed) )  {
-    console.log("borrowToRepayBal:", borrowToRepayBal / (10 ** borrowTokenDecimals), "repayAmountBorrowed:", repayAmountBorrowed / (10 ** borrowTokenDecimals));
-    console.log("Attempting to repay without enough of repay token balance");
-    return;
-  }
+  // if ( borrowToRepayBal != Math.trunc(repayAmountBorrowed) )  {
+  expect(borrowToRepayBal / repayTokenExp).to.equal(Math.trunc(repayAmountBorrowed) / repayTokenExp);
+  // }
 
   logger.info("Attempting liquidation of Account 2");
-  await logBalances( LOG_DEBUG, account1.address, seizeContracts, "Seize" );
+  await logBalances( account1.address, seizeContracts, "Seize" );
 
   // Approve tokens for repayment
   tx = await repayContracts.token.approve(repayContracts.jToken.address, BigInt(Math.trunc(repayAmountBorrowed)));
@@ -238,15 +236,11 @@ const main = async () => {
 
   // Verify balance has changed.
   const seizedAmount = await seizeContracts.jToken.balanceOf(account1.address);
-  if (seizedAmount == 0)  {
-    console.log("Unable to liquidate account, seized assets:", seizedAmount / seizeTokenExp);
-    return;
-  }
-  else
-    logger.info("Successfully seized jTokens(j%s) amount(%d) from liquidation", seizeContracts.name, seizedAmount / seizeTokenExp);
+  expect(seizedAmount / 1e8).to.gt(0);
+  logger.info("Successfully seized jTokens(j%s) amount(%d) from liquidation", seizeContracts.name, seizedAmount / seizeTokenExp);
 
-  await logBalances( LOG_DEBUG, account1.address, repayContracts, "Repay" );
-  await logBalances( LOG_DEBUG, account1.address, seizeContracts, "Seize" );
+  await logBalances( account1.address, repayContracts, "Repay" );
+  await logBalances( account1.address, seizeContracts, "Seize" );
 
   // Redeem seized jTokens
   tx = await seizeContracts.jErc.redeem(seizedAmount);
@@ -254,7 +248,7 @@ const main = async () => {
   
   let seizedUnderlyingBalance = await seizeContracts.token.balanceOf(account1.address);
   logger.info("Redeemed(%d) seized jTokens(j%s) for underlying asset(%s)", seizedUnderlyingBalance / seizeTokenExp, seizeContracts.name, seizeContracts.name);
-  await logBalances( LOG_DEBUG, account1.address, seizeContracts, "Seize" );
+  await logBalances( account1.address, seizeContracts, "Seize" );
 
   await swapTokensForAvax(
     contractsDictAcct1,           // dict:      contractsDict
@@ -264,62 +258,53 @@ const main = async () => {
   );
 
   logger.info("Swapped seized tokens for AVAX");
-  await logBalances( LOG_DEBUG, account1.address, seizeContracts, "Seize" );
-  await logBalances( LOG_DEBUG, account1.address, repayContracts, "Repay" );
+  await logBalances( account1.address, seizeContracts, "Seize" );
+  await logBalances( account1.address, repayContracts, "Repay" );
 
   // --------------------------------------------------
   // Finally calculate totals and profits
   // --------------------------------------------------
 
-  const totalAvax  = await hre.ethers.provider.getBalance(account1.address);
+  const totalAvax  = await ethers.provider.getBalance(account1.address);
   const profitAvax = totalAvax - initialAvaxAccount1;
 
   logger.info("Total AVAX after liquidation: %d", totalAvax / wavaxExp);
   logger.info("AVAX profit after gas: %d", profitAvax / wavaxExp);
 
   const priceWavax = await contractsDictAcct1.joeoracle.getUnderlyingPrice(contractsDictAcct1.jWAVAX.address);
-  logger.info("Profit in USD: %d", (priceWavax * profitAvax) / (wavaxExp ** 2) );
-};
+  const profitUSD = (priceWavax * profitAvax) / (wavaxExp ** 2);
+  logger.info("Profit in USD: %d", profitUSD);
 
-const runMain = async () => {
-  try {
-    await main();
-    process.exit(0);
-  } catch (error) {
-    console.log(error);
-    process.exit(1);
-  }
-};
+  expect(profitUSD).to.gt(0);
+}).timeout(200000) });
 
-runMain();
+// const runMain = async () => {
+//   try {
+//     await main();
+//     process.exit(0);
+//   } catch (error) {
+//     console.log(error);
+//     process.exit(1);
+//   }
+// };
 
-async function logBalances( level, address, contracts, type) {
+// runMain();
+
+
+async function logBalances( address, contracts, type) {
 
   logger.debug(" ------------  %s Balances:  ------------", type);
   logger.debug(" Address: %s", address);
 
+  const avaxBal   = await ethers.provider.getBalance(address) / 1e18;
+  logger.debug(" AVAX   Token  balance : %d", avaxBal);
+
   const tokenDecimals = await contracts.token.decimals();
   const jTokenDecimals = await contracts.jToken.decimals();
   
-  const avaxBal   = await hre.ethers.provider.getBalance(address) / 1e18;
   const tokenBal  = await contracts.token.balanceOf(address) / (10 ** tokenDecimals);
   const jTokenBal = await contracts.jToken.balanceOf(address) / (10 ** jTokenDecimals);
   
-  switch(level) {
-    case LOG_TRACE:
-      logger.trace(" AVAX   Token  balance : %d", avaxBal);
-      logger.trace(" %s Token  %s balance : %d", type, contracts.name, tokenBal);
-      logger.trace(" %s jToken %s balance : %d", type, contracts.name, jTokenBal);
-      break;
-      case LOG_DEBUG:
-        logger.debug(" AVAX   Token  balance : %d", avaxBal);
-        logger.debug(" %s Token  %s balance : %d", type, contracts.name, tokenBal);
-        logger.debug(" %s jToken %s balance : %d", type, contracts.name, jTokenBal);
-      break;
-      case LOG_INFO:
-      logger.info(" AVAX   Token  balance : %d", avaxBal);
-      logger.info(" %s Token  %s balance : %d", type, contracts.name, tokenBal);
-      logger.info(" %s jToken %s balance : %d", type, contracts.name, jTokenBal);
-      break;
-  }
+  logger.debug(" %s Token  %s balance : %d", type, contracts.name, tokenBal);
+  logger.debug(" %s jToken %s balance : %d", type, contracts.name, jTokenBal);
 }
