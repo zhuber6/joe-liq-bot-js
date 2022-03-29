@@ -1,7 +1,7 @@
 const { time, snapshot } = require("@openzeppelin/test-helpers");
 util = require('util');
 
-const { ethers } = require("hardhat");
+const { network, ethers } = require("hardhat");
 const { expect } = require("chai");
 
 const {createContractsDict} = require('../common/contractsDict.js');
@@ -22,9 +22,23 @@ const LOG_ERROR = 4;
 const LOG_FATAL = 5;
 
 describe("testLiquidator", async function () {
+  beforeEach(async function() {
+    await network.provider.request({
+      method: "hardhat_reset",
+      params: [
+        {
+          forking: {
+            jsonRpcUrl: "https://api.avax.network/ext/bc/C/rpc",
+            chainId: 43114,
+            blockNumber: 12580000,
+          },
+        },
+      ],
+    });
+  });
   await it("Should have a positive profit after liquidation", async function () {
 
-  logger.level = 'debug'
+  logger.level = 'info'
 
   let tx;
   let receipt;
@@ -51,24 +65,24 @@ describe("testLiquidator", async function () {
 
 
   supplyContracts = {
-    "name"    : "WBTC",
-    "token"   : contractsDictAcct2.WBTC,
-    "jToken"  : contractsDictAcct2.jWBTC,
-    "jErc"    : contractsDictAcct2.WBTCjErc20
-  };
-  
-  borrowContracts = {
     "name"    : "USDC",
     "token"   : contractsDictAcct2.USDC,
     "jToken"  : contractsDictAcct2.jUSDC,
     "jErc"    : contractsDictAcct2.USDCjErc20
   };
   
+  borrowContracts = {
+    "name"    : "WBTC",
+    "token"   : contractsDictAcct2.WBTC,
+    "jToken"  : contractsDictAcct2.jWBTC,
+    "jErc"    : contractsDictAcct2.WBTCjErc20
+  };
+  
   repayContracts = {
-    "name"    : "USDC",
-    "token"   : contractsDictAcct1.USDC,
-    "jToken"  : contractsDictAcct1.jUSDC,
-    "jErc"    : contractsDictAcct1.USDCjErc20
+    "name"    : "WBTC",
+    "token"   : contractsDictAcct1.WBTC,
+    "jToken"  : contractsDictAcct1.jWBTC,
+    "jErc"    : contractsDictAcct1.WBTCjErc20
   };
 
   const borrowedWavaxBool = borrowContracts.token.address == contractsDictAcct1.WAVAX.address;
@@ -172,7 +186,7 @@ describe("testLiquidator", async function () {
   tx = await borrowContracts.jErc.borrow( BigInt(Math.trunc(borrowAmount * borrowFudge)) );
   receipt = await tx.wait();
   const borrowErcBalance = await borrowContracts.token.balanceOf(account2.address);
-  expect(borrowErcBalance.toNumber()).to.gt(0);
+  expect(borrowErcBalance / borrowTokenExp).to.gt(0);
   logger.info("Successfully borrowed %s", borrowContracts.name);
 
   await logBalances( account2.address, borrowContracts, "Borrow" );
@@ -185,7 +199,7 @@ describe("testLiquidator", async function () {
   logger.info("Account 2 Shortfall: %d", short / 1e18);
 
   // Jump ahead in time
-  await ethers.provider.send("evm_increaseTime", [60*60*24*1])
+  await ethers.provider.send("evm_increaseTime", [60*60*24*10])
   await ethers.provider.send('evm_mine');
   
   // Get current borrow balance after mining

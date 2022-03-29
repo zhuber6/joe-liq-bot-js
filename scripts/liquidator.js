@@ -105,7 +105,7 @@ const main = async () => {
         // For now only liquidate if this threshold is met
         // TODO: Fix this to handle liquidation of multiple borrow positions and supply positions
         // TODO: Doesn't handle XJOE as supplied token
-        if ( (maxBorrowUSD / 2 > maxSupplyUSD) && ( jXJOE != supplyjToken ) )
+        if ( (maxBorrowUSD / 2 < maxSupplyUSD) && ( jXJOE != supplyjToken ) )
         {
           console.log("Max supply underlying USD %s: %d", accounts.tokens[maxSupplyIndex].symbol, maxSupplyUSD);
           console.log("Max borrow underlying USD %s: %d", accounts.tokens[maxBorrowIndex].symbol, maxBorrowUSD);

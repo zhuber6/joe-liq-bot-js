@@ -14,7 +14,7 @@ const forkingData = FORK_FUJI ? {
   url: 'https://api.avax-test.network/ext/bc/C/rpc',
 } : FORK_MAINNET ? {
   url: 'https://api.avax.network/ext/bc/C/rpc',
-  // blockNumber: 9253165
+  // blockNumber: 12590000
 } : undefined
 
 module.exports = {

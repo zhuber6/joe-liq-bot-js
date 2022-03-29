@@ -145,6 +145,32 @@ interface Joetroller {
 }
 
 interface IJToken {
+    /*** Market Events ***/
+
+    event AccrueInterest(uint256 cashPrior, uint256 interestAccumulated, uint256 borrowIndex, uint256 totalBorrows);
+    event Mint(address minter, uint256 mintAmount, uint256 mintTokens);
+    event Redeem(address redeemer, uint256 redeemAmount, uint256 redeemTokens);
+    event Borrow(address borrower, uint256 borrowAmount, uint256 accountBorrows, uint256 totalBorrows);
+    event RepayBorrow(
+        address payer,
+        address borrower,
+        uint256 repayAmount,
+        uint256 accountBorrows,
+        uint256 totalBorrows
+    );
+    event LiquidateBorrow(
+        address liquidator,
+        address borrower,
+        uint256 repayAmount,
+        address jTokenCollateral,
+        uint256 seizeTokens
+    );
+    event Transfer(address indexed from, address indexed to, uint256 amount);
+    event Approval(address indexed owner, address indexed spender, uint256 amount);
+    event Failure(uint256 error, uint256 info, uint256 detail);
+
+    /*** User Interface ***/
+
     function decimals() external view returns (uint8);
     function transfer(address dst, uint256 amount) external returns (bool);
     function transferFrom(

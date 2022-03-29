@@ -76,6 +76,12 @@ contract FlashLiquidator is ERC3156FlashBorrowerInterface {
 
         // Call flash loan function
         ERC3156FlashLenderInterface(flashloanLender).flashLoan(this, address(this), flashLoanAmount, data);
+
+        // Transfer remaining WAVAX to owner
+        IERC20(flashLoanToken).transfer(
+            owner,
+            IERC20(flashLoanToken).balanceOf(address(this))
+        );
     }
 
     // Function called from flash loan lender contract
@@ -147,11 +153,11 @@ contract FlashLiquidator is ERC3156FlashBorrowerInterface {
         // Approve flash loan lender to pay back loan
         IERC20(token).approve(msg.sender, amount + fee);
 
-        // Transfer remaining WAVAX to owner
-        IERC20(flashLoanToken).transfer(
-            owner,
-            IERC20(flashLoanToken).balanceOf(address(this)) - (amount + fee)
-        );
+        // // Transfer remaining WAVAX to owner
+        // IERC20(flashLoanToken).transfer(
+        //     owner,
+        //     IERC20(flashLoanToken).balanceOf(address(this)) - (amount + fee)
+        // );
 
         // Finish loan
         return keccak256("ERC3156FlashBorrowerInterface.onFlashLoan");
@@ -243,13 +249,13 @@ contract FlashLiquidator is ERC3156FlashBorrowerInterface {
         address jTokenBorrowed,
         address jTokenBorrowedUnderlying,
         address jTokenSupplied,
-        uint    amount
+        uint    repayAmount
     ) internal {
 
-        IERC20(jTokenBorrowedUnderlying).approve(jTokenBorrowed, amount);
+        IERC20(jTokenBorrowedUnderlying).approve(jTokenBorrowed, repayAmount);
         uint err = IJErc20(jTokenBorrowed).liquidateBorrow(
             borrower,
-            amount,
+            repayAmount,
             IJToken(jTokenSupplied)
         );
         require(err == 0, "Error while attempting liquidation");
@@ -259,7 +265,7 @@ contract FlashLiquidator is ERC3156FlashBorrowerInterface {
             "Seized jTokens is zero"
         );
 
-        emit Liquidated(borrower, amount, jTokenBorrowed, jTokenSupplied );
+        emit Liquidated(borrower, repayAmount, jTokenBorrowed, jTokenSupplied );
     }
 
 
