@@ -51,13 +51,13 @@ module.exports = {
       url: 'https://api.avax-test.network/ext/bc/C/rpc',
       gasPrice: 225000000000,
       chainId: 43113,
-      accounts: [process.env.PRIVATE_KEY_2]
+      // accounts: [process.env.PRIVATE_KEY_2]
     },
     mainnet: {
       url: 'https://api.avax.network/ext/bc/C/rpc',
       gasPrice: 225000000000,
       chainId: 43114,
-      accounts: [process.env.PRIVATE_KEY_1]
+      // accounts: [process.env.PRIVATE_KEY_1]
     }
   }
 }

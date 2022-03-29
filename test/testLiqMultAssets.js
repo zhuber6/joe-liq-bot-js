@@ -75,8 +75,15 @@ describe("testLiqMultAsset", async function () {
   
   borrowContracts = 
   [{
+    "name"    : "LINK",
+    "weight"  : 0.4,
+    "token"   : contractsDictAcct2.LINK,
+    "jToken"  : contractsDictAcct2.jLINK,
+    "jErc"    : contractsDictAcct2.LINKjErc20
+  },
+  {
     "name"    : "WETH",
-    "weight"  : 0.8,
+    "weight"  : 0.4,
     "token"   : contractsDictAcct2.WETH,
     "jToken"  : contractsDictAcct2.jWETH,
     "jErc"    : contractsDictAcct2.WETHjErc20
@@ -179,25 +186,20 @@ describe("testLiqMultAsset", async function () {
   // Account 2 to borrow max
   // --------------------------------------------------
 
-  await Promise.all(borrowContracts.map(async (currContracts, index) => {
-    const decimalCorrection = 18 - borrowTokenDecimals[index];
-    const borrowTokenPrice = await contractsDictAcct2.joeoracle.getUnderlyingPrice(currContracts.jErc.address)
-    logger.info("Borrow token(%s) Price(%d)", currContracts.name, borrowTokenPrice / (1e18 * (10 ** decimalCorrection)));
-    
-    // Calculate borrow amount
-    borrowAmount = ( (liq * 1e18) / borrowTokenPrice ) * currContracts.weight;
-    const borrowFudge  = 0.999999999999999;
-    logger.info("Attempting to borrow token(%s) amount(%d)", currContracts.name, Math.trunc(borrowAmount * borrowFudge) / borrowTokenExp[index]);
-    
-    // Borrow ERC20 token
-    tx = await currContracts.jErc.borrow( BigInt(Math.trunc(borrowAmount * borrowFudge)) );
-    receipt = await tx.wait();
-    const borrowErcBalance = await currContracts.token.balanceOf(account2.address);
-    expect(borrowErcBalance / borrowTokenExp[index]).to.gt(0);
-    logger.info("Successfully borrowed %s", currContracts.name);
-
-    await logBalances( account2.address, currContracts, "Borrow" );
-  }));
+  // Force borrows to happen sequentially or will see inconsistent behavior
+  var weightSum = 0;
+  for (let i = 0; i < borrowContracts.length; i++) {
+    weightSum += borrowContracts[i].weight;
+    await borrow(
+      account2,
+      borrowContracts[i],
+      borrowTokenExp[i],
+      borrowTokenDecimals[i],
+      contractsDictAcct2,
+      weightSum,
+      liq
+    );
+  }
 
   // --------------------------------------------------
   // Jump ahead in time to force account 2 underwater
@@ -340,6 +342,35 @@ describe("testLiqMultAsset", async function () {
 // };
 
 // runMain();
+
+async function borrow( account, borrowContracts, exp, decimals, contractsDict, weight, initialLiq ) {
+  const decimalCorrection = 18 - decimals;
+  const borrowTokenPrice = await contractsDict.joeoracle.getUnderlyingPrice(borrowContracts.jErc.address)
+  logger.info("Borrow token(%s) Price(%d)", borrowContracts.name, borrowTokenPrice / (1e18 * (10 ** decimalCorrection)));
+  
+  // Calculate borrow amount
+  const borrowAmount = ( (initialLiq * 1e18) / borrowTokenPrice ) * weight;
+  const borrowFudge  = 0.999999999999999;
+  logger.info("Attempting to borrow token(%s) amount(%d)", borrowContracts.name, Math.trunc(borrowAmount * borrowFudge) / exp);
+
+  // Borrow ERC20 token
+  tx = await borrowContracts.jErc.borrow( BigInt(Math.trunc(borrowAmount * borrowFudge)) );
+  receipt = await tx.wait();
+  const borrowErcBalance = await borrowContracts.token.balanceOf(account.address);
+  expect(borrowErcBalance / exp).to.gt(0);
+  logger.info("Successfully borrowed %s", borrowContracts.name);
+
+  await logBalances( account.address, borrowContracts, "Borrow" );
+
+  borrowTokenBalanceJoe = await borrowContracts.jToken.borrowBalanceStored(account.address);
+  
+  // Get liquidity after borrowing
+  [err, liq, short] = await contractsDict.joetroller.getAccountLiquidity(account.address);
+  expect(err.toNumber()).to.equal(0);
+
+  logger.info("Account Liquidity: %d", liq / 1e18);
+  logger.info("Account Shortfall: %d", short / 1e18);
+}
 
 
 async function logBalances( address, contracts, type) {
